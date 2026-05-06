@@ -1,0 +1,6 @@
+.DS_Store
+**/__pycache__
+**/.pytest_cache
+**/.idea
+merged_data/
+merged_crime_dataset.parquet
