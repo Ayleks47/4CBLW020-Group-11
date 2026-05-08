@@ -54,7 +54,7 @@ def stream_zip_to_parquet(zip_file_name: str, target_file_inside_zip: str, outpu
 
 if __name__ == "__main__":
 
-    zip_name = "merged_data.zip" 
+    zip_name = "data/merged_data.zip" 
     
     target_file = "merged_data/merged_street.csv" 
     

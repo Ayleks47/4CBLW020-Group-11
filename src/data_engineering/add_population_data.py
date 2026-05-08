@@ -3,7 +3,7 @@ import pandas as pd
 
 def process_and_merge_population():
 
-    master_df = pl.read_csv("midterm_prototype_dataset.csv")
+    master_df = pl.read_csv("data/midterm_prototype_dataset.csv")
 
     excel_file = "policeforceareas1991to2024.xlsx"
 

@@ -1,7 +1,7 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
 
-shapefile_path = "SHP/Police_Force_Areas_UK.shp" 
+shapefile_path = "data/SHP/Police_Force_Areas_UK.shp" 
 
 police_map = gpd.read_file(shapefile_path)
 

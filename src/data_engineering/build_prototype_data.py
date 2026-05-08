@@ -1,7 +1,7 @@
 import polars as pl
 
 def build_master_dataset():
-    crime_lazy = pl.scan_parquet("merged_crime_dataset.parquet")
+    crime_lazy = pl.scan_parquet("data/merged_crime_dataset.parquet")
     
     # Count total crimes per month per police force
     monthly_crime = (

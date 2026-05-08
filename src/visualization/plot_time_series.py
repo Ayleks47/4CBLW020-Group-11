@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def plot_dual_axis_timeseries():
-    df = pd.read_csv("final_midterm_prototype_with_rates.csv")
+    df = pd.read_csv("data/final_midterm_prototype_with_rates.csv")
     
     df = df.dropna(subset=['Crime_Rate_Per_1000', 'Mean_Temp'])
     

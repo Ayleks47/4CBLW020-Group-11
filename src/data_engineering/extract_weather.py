@@ -4,7 +4,7 @@ import regionmask
 import pandas as pd
 
 def extract_regional_weather():
-    shapefile_path = "SHP/Police_Force_Areas_UK.shp" 
+    shapefile_path = "data/SHP/Police_Force_Areas_UK.shp" 
     police_map = gpd.read_file(shapefile_path)
     
     # Project to British National Grid to match Met Office data

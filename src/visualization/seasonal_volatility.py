@@ -7,7 +7,7 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 crime_list = ['Anti-social behaviour', 'Bicycle theft', 'Burglary', 'Criminal damage and arson', 'Drugs', 'Other crime', 'Other theft', 'Possession of weapons', 'Public disorder and weapons', 'Public order', 'Robbery', 'Shoplifting', 'Theft from the person', 'Vehicle crime', 'Violence and sexual offences', 'Violent crime']
 
 def generate_variance_df():
-    df = pl.scan_parquet("merged_crime_dataset.parquet")
+    df = pl.scan_parquet("data/merged_crime_dataset.parquet")
     
     sorted_df = (
         df
@@ -39,7 +39,7 @@ def generate_variance_df():
     return pd.DataFrame(results)
 
 def generate_variance_df_by_crime_type(crime_type):
-    df = pl.scan_parquet("merged_crime_dataset.parquet")
+    df = pl.scan_parquet("data/merged_crime_dataset.parquet")
     
     sorted_df = (
         df
@@ -78,7 +78,7 @@ def plot_variance_map(df):
 
     # pretty much just Maciej's work here 
     
-    uk_map = gpd.read_file("SHP/Police_Force_Areas_UK.shp")
+    uk_map = gpd.read_file("data/SHP/Police_Force_Areas_UK.shp")
     
     uk_map['Police_Force'] = (
         uk_map['PFANM']

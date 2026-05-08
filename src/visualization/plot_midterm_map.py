@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def plot_side_by_side_map():
-    uk_map = gpd.read_file("SHP/Police_Force_Areas_UK.shp")
+    uk_map = gpd.read_file("data/SHP/Police_Force_Areas_UK.shp")
     
     uk_map['Police_Force'] = (
         uk_map['PFANM']
@@ -14,7 +14,7 @@ def plot_side_by_side_map():
         .str.replace(" ", "-")      
     )
     
-    df = pd.read_csv("final_midterm_prototype_with_rates.csv")
+    df = pd.read_csv("data/final_midterm_prototype_with_rates.csv")
     
     target_month = "2018-07"
     month_data = df[df['Month'] == target_month]
