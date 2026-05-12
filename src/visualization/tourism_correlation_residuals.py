@@ -55,8 +55,8 @@ def tourism_correlation():
 
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    x = crime_decomp.resid
-    y = tourism_decomp.resid
+    y = crime_decomp.resid
+    x = tourism_decomp.resid
     
     ax.scatter(x, y)
     m, c = np.polyfit(x, y, 1)
