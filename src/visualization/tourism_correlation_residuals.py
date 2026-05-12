@@ -66,7 +66,7 @@ def tourism_correlation():
     plt.ylabel("Crime Anomaly")
     plt.axhline(color='gray', linestyle='--')
     plt.axvline(color='gray', linestyle='--')
-    ax.legend(loc='lower right')
+    ax.text(0.05, 0.95, f'Pearson R: {r_value:.3f}\nP-value: {p_value:.3g}', transform=ax.transAxes, fontsize=12, verticalalignment='top')
     
     plt.tight_layout()
     plt.savefig("tourism_crime_correlation.png")
