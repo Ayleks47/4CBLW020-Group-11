@@ -3,5 +3,5 @@
 **/.pytest_cache
 **/.idea
 merged_data/
-merged_crime_dataset.parquet
+merged_data/merged_crime_dataset.parquet
 data/
