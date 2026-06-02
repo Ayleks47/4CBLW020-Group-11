@@ -10,11 +10,13 @@ from dateutil import relativedelta
 st.set_page_config(page_title="Resource Allocation Forecaster", layout="wide")
 
 #TODO:
-# remove Scotland and Ireland
-# replace dummy database with current one
+# remove Scotland and Ireland - done
+# replace dummy database with current one - done
+# optimization of map loading - done?
 # make LSOAs clickable
 # interconnect data with selectboxes
 # graphs (optional currently)
+# change PFNAM when selecting on map
 
 # Loading of database
 @st.cache_data
@@ -52,35 +54,46 @@ def load_data():
 
 police_gdf, lsoa_gdf, df = load_data()
 
-# session state/ memory
+# Session state/ memory
 if 'clicked_force' not in st.session_state:
     st.session_state.clicked_force = None
 
-# headers and filters
-st.title("Resource Allocation & Demand Forecaster")
-this_month = datetime.date.today()
-filter_col1, filter_col2 = st.columns(2)
-with filter_col1:
-    # target_month = st.selectbox("Target Month", ["August 2026", "September 2026"])
-    target_month = st.selectbox("Target Month", [(this_month + datetime.timedelta(days=32)).strftime("%B %Y"), (this_month + datetime.timedelta(days=64)).strftime("%B %Y")])
-with filter_col2:
-    if df is None:
-        st.error("Failed to load the main dataset. Check that the data files exist and the paths are correct.")
-        st.stop()
-    crime_type = st.selectbox("Crime Focus", df['Crime type'].dropna().unique().tolist())
+# Headers and filters
+@st.fragment(run_every=None)
+def head_and_filt():
+    st.title("Resource Allocation & Demand Forecaster")
+    this_month = datetime.date.today()
+    filter_col1, filter_col2 = st.columns(2)
+    with filter_col1:
+        # target_month = st.selectbox("Target Month", ["August 2026", "September 2026"])
+        target_month = st.selectbox("Target Month", [(this_month + datetime.timedelta(days=32)).strftime("%B %Y"), (this_month + datetime.timedelta(days=64)).strftime("%B %Y")])
+    with filter_col2:
+        if df is None:
+            st.error("Failed to load the main dataset. Check that the data files exist and the paths are correct.")
+            st.stop()
+        crime_type = st.selectbox("Crime Focus", df['Crime type'].dropna().unique().tolist())
 
-st.markdown("---")
 
-# main layout
-col1, col2 = st.columns([2, 1])
+# Main layout
+def main_layout():
+    col1, col2 = st.columns([2, 1])
 
-if police_gdf is not None:
-    with col1:
-        # national map
-        if st.session_state.clicked_force is None:
+    if police_gdf is not None:
+        with col1:
+            # national map
+            
             st.subheader("Select a Police Force to evaluate")
             
-            m = folium.Map(location=[52.5, -1.5], zoom_start=6)
+            m = folium.Map(
+                location=[52.5, 0.5],
+                zoom_start=6,
+                min_zoom=6,          # Prevents zooming out further than the default view
+                max_bounds=True,     # Activates the panning boundaries
+                min_lat=49.5,        # Southernmost point (approx)
+                max_lat=61.0,        # Northernmost point (approx)
+                min_lon=-8.0,        # Westernmost point (approx)
+                max_lon=3.5          # Easternmost point (approx)
+            )
             
             # draw polygons and make them clickable
             folium.GeoJson(
@@ -98,61 +111,86 @@ if police_gdf is not None:
             if map_data and map_data.get('last_active_drawing'):
                 clicked_name = map_data['last_active_drawing']['properties']['PFANM']
                 st.session_state.clicked_force = clicked_name
-                st.rerun() 
-
-        # zoomed lsoa
-        else:
-            st.subheader(f"Localized LSOA Forecast: {st.session_state.clicked_force}")
-            
-            # button to go back
-            if st.button("⬅️ Back to National Map"):
-                st.session_state.clicked_force = None
-                st.rerun()
+                st.info(clicked_name)
+                st.rerun(scope='fragment')
                 
-            # region masking
-            force_geom = police_gdf[police_gdf['PFANM'] == st.session_state.clicked_force]
-            clipped_lsoas = gpd.clip(lsoa_gdf, force_geom)
             
-            center_lat = force_geom.geometry.centroid.y.iloc[0]
-            center_lon = force_geom.geometry.centroid.x.iloc[0]
-            
-            m2 = folium.Map(location=[center_lat, center_lon], zoom_start=9)
-            
-            # draw the clipped LSOAs
-            folium.GeoJson(
-                clipped_lsoas,
-                style_function=lambda x: {'fillColor': 'transparent', 'color': 'red', 'weight': 1}
-            ).add_to(m2)
-            
-            # draw the thick Police boundary over it
-            folium.GeoJson(
-                force_geom,
-                style_function=lambda x: {'fillColor': 'transparent', 'color': 'black', 'weight': 4}
-            ).add_to(m2)
-            
-            st_folium(m2, height=500, use_container_width=True, key="zoomed_map")
-
-    # sidebar data that shows only when LSOA is clicked
-    with col2:
-        if st.session_state.clicked_force:
-            st.subheader("Seasonal Comparison")
-            display_df = df[['Name', 'Seasonal_Baseline', 'Predicted_Count', 'Predicted_Spike']].sort_values(by='Predicted_Spike', ascending=False)
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
-
-            st.subheader("Resource Recommendation")
-            selected_lsoa = st.selectbox("Select Target Area:", df['Name'])
-
-            lsoa_data = df[df['Name'] == selected_lsoa].iloc[0]
-            spike = lsoa_data['Predicted_Spike']
-            is_localized = lsoa_data['Is_Localized']
-
-            st.metric(label=f"Spike vs. {target_month.split()[0]} Baseline", value=f"+{spike}%")
-
-            if spike > 15.0 and is_localized:
-                st.warning("⚠️ **Spatial Analysis: Localized Spike Detected.**\n\n**Recommendation:** Temporarily redistribute flexible patrol time from low-risk zones to this hotspot. Do not permanently increase overall force headcount.")
-            elif spike > 15.0 and not is_localized:
-                st.info("📊 **Spatial Analysis: Broad Increase Detected.**\n\n**Recommendation:** The predicted increase is spread across the majority of the police force area. A targeted hotspot patrol response is not recommended here.")
-            else:
-                st.success("✅ **Spatial Analysis: Normal Baseline.**\n\n**Recommendation:** Expected crime levels are within standard seasonal variations. Maintain normal allocations.")
-        else:
+        with col2:
             st.info("Please click a Police Force on the map to begin the analysis.")
+
+
+# zoomed LSOAs fragment
+def zoomed_lsoa():
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.subheader(f"Localized LSOA Forecast: {st.session_state.clicked_force}")
+                    
+        # button to go back
+        if st.button("⬅️ Back to National Map"):
+            st.session_state.clicked_force = None
+            st.rerun(scope='fragment')
+            
+            
+        # region masking
+        force_geom = police_gdf[police_gdf['PFANM'] == st.session_state.clicked_force]
+        clipped_lsoas = gpd.clip(lsoa_gdf, force_geom)
+        
+        center_lat = force_geom.geometry.centroid.y.iloc[0]
+        center_lon = force_geom.geometry.centroid.x.iloc[0]
+        
+        m2 = folium.Map(location=[center_lat, center_lon], zoom_start=9, min_zoom=8)
+        
+        # draw the clipped LSOAs
+        folium.GeoJson(
+            clipped_lsoas,
+            style_function=lambda x: {'fillColor': 'transparent', 'color': 'red', 'weight': 1}
+        ).add_to(m2)
+        
+        
+        # draw the thick Police boundary over it
+        folium.GeoJson(
+            force_geom,
+            style_function=lambda x: {'fillColor': 'transparent', 'color': 'black', 'weight': 4}
+        ).add_to(m2)
+        
+        st_folium(m2, height=500, use_container_width=True, key="zoomed_map")
+
+    with col2:
+            if st.session_state.clicked_force:
+                force_df = df[df['Police Territory'].str.contains(st.session_state.clicked_force)]
+                st.subheader("Seasonal Comparison")
+                # display_df = df[['Name', 'Seasonal_Baseline', 'Predicted_Count', 'Predicted_Spike']].sort_values(by='Predicted_Spike', ascending=False)
+                display_df = force_df[['LSOA code','LSOA name', 'Crime type']].head()
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                st.subheader("Resource Recommendation")
+                selected_lsoa = st.selectbox("Select Target Area:", force_df['LSOA name'])
+
+                lsoa_data = force_df[force_df['LSOA name'] == selected_lsoa].iloc[0]
+                #TODO: include predictions
+                spike = lsoa_data['Predicted_Spike']
+                is_localized = lsoa_data['Is_Localized']
+
+                st.metric(label=f"Spike vs. {target_month.split()[0]} Baseline", value=f"+{spike}%")
+
+                if spike > 15.0 and is_localized:
+                    st.warning("⚠️ **Spatial Analysis: Localized Spike Detected.**\n\n**Recommendation:** Temporarily redistribute flexible patrol time from low-risk zones to this hotspot. Do not permanently increase overall force headcount.")
+                elif spike > 15.0 and not is_localized:
+                    st.info("📊 **Spatial Analysis: Broad Increase Detected.**\n\n**Recommendation:** The predicted increase is spread across the majority of the police force area. A targeted hotspot patrol response is not recommended here.")
+                else:
+                    st.success("✅ **Spatial Analysis: Normal Baseline.**\n\n**Recommendation:** Expected crime levels are within standard seasonal variations. Maintain normal allocations.")
+            else:
+                st.info("Please click a Police Force on the map to begin the analysis.")
+
+@st.fragment
+# switches the different map layouts
+def dynamic_fragment_container():
+    if st.session_state.clicked_force is None:
+        main_layout()
+    else:
+        zoomed_lsoa()
+
+# Layout configuration
+head_and_filt()
+st.markdown("---")
+dynamic_fragment_container()
