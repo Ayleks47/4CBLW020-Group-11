@@ -9,7 +9,7 @@ def load_data(path: str) -> pd.DataFrame:
 
 st.title("Crime Dataset Explorer")
 
-DATA_PATH = "master_dataset_dropped_outcome_nulls.parquet"
+DATA_PATH = "../../data/master_dataset_dropped_outcome_nulls.parquet"
 df = load_data(DATA_PATH)
 
 st.sidebar.header("Filter dataset")

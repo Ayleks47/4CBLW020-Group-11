@@ -2,16 +2,37 @@ import streamlit as st
 import pandas as pd
 import geopandas as gpd
 import folium
+from pathlib import Path
 from streamlit_folium import st_folium
+import datetime
+from dateutil import relativedelta
 
 st.set_page_config(page_title="Resource Allocation Forecaster", layout="wide")
 
-# dummy data
+#TODO:
+# remove Scotland and Ireland
+# replace dummy database with current one
+# make LSOAs clickable
+# interconnect data with selectboxes
+# graphs (optional currently)
+
+# Loading of database
 @st.cache_data
 def load_data():
+    repo_root = Path(__file__).resolve().parents[2]
+    data_dir = repo_root / "data"
+    police_path = data_dir / "SHP" / "Police_Force_Areas_UK.shp"
+    lsoa_path = data_dir / "SHP" / "LSOA" / "LSOA.shp"
+    parquet_path = data_dir / "master_dataset_full_set_no_solved_percent.parquet"
+
     try:
-        police_gdf = gpd.read_file("data/SHP/Police_Force_Areas_UK.shp").to_crs(epsg=4326)
-        lsoa_gdf = gpd.read_file("data/SHP/LSOA/LSOA.shp").to_crs(epsg=4326)
+        police_gdf = gpd.read_file(police_path).to_crs(epsg=4326)
+        exclude_names = [
+            "Scotland",
+            "Northern Ireland"
+        ]
+        police_gdf = police_gdf[~police_gdf['PFANM'].isin(exclude_names)].copy()
+        lsoa_gdf = gpd.read_file(lsoa_path).to_crs(epsg=4326)
 
         police_gdf['geometry'] = police_gdf.geometry.simplify(0.005)
         lsoa_gdf['geometry'] = lsoa_gdf.geometry.simplify(0.005)
@@ -19,15 +40,15 @@ def load_data():
         st.error(f"Shapefile error: {e}")
         return None, None, None
 
-    dummy_data = pd.DataFrame({
-        'LSOA': ['E01008881', 'E01009763', 'E01010085', 'E01010122', 'E01010301'],
-        'Name': ['Birmingham City Centre', 'Dudley Hub', 'Sandwell Retail', 'Solihull Residential', 'Walsall Suburb'],
-        'Seasonal_Baseline': [120, 85, 90, 40, 55],
-        'Predicted_Count': [150, 93, 112, 41, 56],
-        'Predicted_Spike': [25.0, 9.4, 24.4, 2.5, 1.8],
-        'Is_Localized': [True, False, True, False, False]
-    })
-    return police_gdf, lsoa_gdf, dummy_data
+    try:
+        database = pd.read_parquet(parquet_path)
+    except Exception as e:
+        st.error(f"Dataset load error: {e}")
+        return None, None, None
+
+    return police_gdf, lsoa_gdf, database
+
+
 
 police_gdf, lsoa_gdf, df = load_data()
 
@@ -37,12 +58,16 @@ if 'clicked_force' not in st.session_state:
 
 # headers and filters
 st.title("Resource Allocation & Demand Forecaster")
-
+this_month = datetime.date.today()
 filter_col1, filter_col2 = st.columns(2)
 with filter_col1:
-    target_month = st.selectbox("Target Month", ["August 2026", "September 2026"])
+    # target_month = st.selectbox("Target Month", ["August 2026", "September 2026"])
+    target_month = st.selectbox("Target Month", [(this_month + datetime.timedelta(days=32)).strftime("%B %Y"), (this_month + datetime.timedelta(days=64)).strftime("%B %Y")])
 with filter_col2:
-    crime_type = st.selectbox("Crime Focus", ["Anti-Social Behaviour", "Robbery", "Public Order", "Retail Theft"])
+    if df is None:
+        st.error("Failed to load the main dataset. Check that the data files exist and the paths are correct.")
+        st.stop()
+    crime_type = st.selectbox("Crime Focus", df['Crime type'].dropna().unique().tolist())
 
 st.markdown("---")
 
