@@ -12,11 +12,15 @@ st.set_page_config(page_title="Resource Allocation Forecaster", layout="wide")
 #TODO:
 # remove Scotland and Ireland - done
 # replace dummy database with current one - done
-# optimization of map loading - done?
+# optimization of map loading - done
 # make LSOAs clickable
 # interconnect data with selectboxes
 # graphs (optional currently)
 # change PFNAM when selecting on map
+# remove target month
+# graphs -> total crime
+# patrol based crimes
+# make it colorblind proof
 
 # Loading of database
 @st.cache_data

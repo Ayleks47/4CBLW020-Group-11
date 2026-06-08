@@ -5,7 +5,6 @@ import folium
 from pathlib import Path
 from streamlit_folium import st_folium
 import datetime
-from dateutil import relativedelta
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -14,42 +13,42 @@ st.set_page_config(page_title="Resource Allocation Forecaster", layout="wide")
 # Create tabs for each components
 tab1, tab2, tab3 = st.tabs(["Map", "Data Explorer", "Graphs"])
 
+@st.cache_data
+def load_data():
+    repo_root = Path(__file__).resolve().parents[2]
+    data_dir = repo_root / "data"
+    police_path = data_dir / "SHP" / "Police_Force_Areas_UK.shp"
+    lsoa_path = data_dir / "SHP" / "LSOA" / "LSOA.shp"
+    parquet_path = data_dir / "master_dataset_full_set_no_solved_percent.parquet"
+
+    try:
+        police_gdf = gpd.read_file(police_path).to_crs(epsg=4326)
+        exclude_names = [
+            "Scotland",
+            "Northern Ireland"
+        ]
+        police_gdf = police_gdf[~police_gdf['PFANM'].isin(exclude_names)].copy()
+        lsoa_gdf = gpd.read_file(lsoa_path).to_crs(epsg=4326)
+
+        police_gdf['geometry'] = police_gdf.geometry.simplify(0.005)
+        lsoa_gdf['geometry'] = lsoa_gdf.geometry.simplify(0.005)
+    except Exception as e:
+        st.error(f"Shapefile error: {e}")
+        return None, None, None
+
+    try:
+        database = pd.read_parquet(parquet_path)
+    except Exception as e:
+        st.error(f"Dataset load error: {e}")
+        return None, None, None
+
+    return police_gdf, lsoa_gdf, database
+
+police_gdf, lsoa_gdf, df = load_data()
+
 # Add Resource Allocation Forecaster to the first tab
 with tab1:
-    @st.cache_data
-    def load_data():
-        repo_root = Path(__file__).resolve().parents[2]
-        data_dir = repo_root / "data"
-        police_path = data_dir / "SHP" / "Police_Force_Areas_UK.shp"
-        lsoa_path = data_dir / "SHP" / "LSOA" / "LSOA.shp"
-        parquet_path = data_dir / "master_dataset_full_set_no_solved_percent.parquet"
 
-        try:
-            police_gdf = gpd.read_file(police_path).to_crs(epsg=4326)
-            exclude_names = [
-                "Scotland",
-                "Northern Ireland"
-            ]
-            police_gdf = police_gdf[~police_gdf['PFANM'].isin(exclude_names)].copy()
-            lsoa_gdf = gpd.read_file(lsoa_path).to_crs(epsg=4326)
-
-            police_gdf['geometry'] = police_gdf.geometry.simplify(0.005)
-            lsoa_gdf['geometry'] = lsoa_gdf.geometry.simplify(0.005)
-        except Exception as e:
-            st.error(f"Shapefile error: {e}")
-            return None, None, None
-
-        try:
-            database = pd.read_parquet(parquet_path)
-        except Exception as e:
-            st.error(f"Dataset load error: {e}")
-            return None, None, None
-
-        return police_gdf, lsoa_gdf, database
-
-
-
-    police_gdf, lsoa_gdf, df = load_data()
 
     # Session state/ memory
     if 'clicked_force' not in st.session_state:
@@ -176,25 +175,26 @@ with tab1:
 
                     lsoa_data = force_df[force_df['LSOA name'] == selected_lsoa].iloc[0]
                     #TODO: include predictions
-                    spike = lsoa_data['Predicted_Spike']
-                    is_localized = lsoa_data['Is_Localized']
+                #     spike = lsoa_data['Predicted_Spike']
+                #     is_localized = lsoa_data['Is_Localized']
 
-                    st.metric(label=f"Spike vs. {target_month.split()[0]} Baseline", value=f"+{spike}%")
+                #     st.metric(label=f"Spike vs. {target_month.split()[0]} Baseline", value=f"+{spike}%")
 
-                    if spike > 15.0 and is_localized:
-                        st.warning("⚠️ **Spatial Analysis: Localized Spike Detected.**\n\n**Recommendation:** Temporarily redistribute flexible patrol time from low-risk zones to this hotspot. Do not permanently increase overall force headcount.")
-                    elif spike > 15.0 and not is_localized:
-                        st.info("📊 **Spatial Analysis: Broad Increase Detected.**\n\n**Recommendation:** The predicted increase is spread across the majority of the police force area. A targeted hotspot patrol response is not recommended here.")
-                    else:
-                        st.success("✅ **Spatial Analysis: Normal Baseline.**\n\n**Recommendation:** Expected crime levels are within standard seasonal variations. Maintain normal allocations.")
-                else:
-                    st.info("Please click a Police Force on the map to begin the analysis.")
+                #     if spike > 15.0 and is_localized:
+                #         st.warning("⚠️ **Spatial Analysis: Localized Spike Detected.**\n\n**Recommendation:** Temporarily redistribute flexible patrol time from low-risk zones to this hotspot. Do not permanently increase overall force headcount.")
+                #     elif spike > 15.0 and not is_localized:
+                #         st.info("📊 **Spatial Analysis: Broad Increase Detected.**\n\n**Recommendation:** The predicted increase is spread across the majority of the police force area. A targeted hotspot patrol response is not recommended here.")
+                #     else:
+                #         st.success("✅ **Spatial Analysis: Normal Baseline.**\n\n**Recommendation:** Expected crime levels are within standard seasonal variations. Maintain normal allocations.")
+                # else:
+                #     st.info("Please click a Police Force on the map to begin the analysis.")
 
     @st.fragment
     # switches the different map layouts
     def dynamic_fragment_container():
         if st.session_state.clicked_force is None:
             main_layout()
+            
         else:
             zoomed_lsoa()
 
@@ -205,16 +205,10 @@ with tab1:
 
 #Add Crime Dataset Explorer to the second tab
 with tab2: 
-    @st.cache_data
-    def load_data(path: str) -> pd.DataFrame:
-        return pd.read_parquet(path)
     
     col1, col2 = st.columns([1, 4])
     
     col2.title("Crime Dataset Explorer")
-
-    DATA_PATH = "data/master_dataset_dropped_outcome_nulls.parquet"
-    df = load_data(DATA_PATH)
 
     col1.header("Filter dataset")
 
@@ -252,9 +246,6 @@ with tab2:
     crime_count_min, crime_count_max = int(df["Crime_Count"].min()), int(df["Crime_Count"].max())
     crime_count_range = col1.slider("Crime Count", crime_count_min, crime_count_max, (crime_count_min, min(crime_count_min + 20, crime_count_max)))
 
-    solved_min, solved_max = float(df["Solved_%"].min()), float(df["Solved_%"].max())
-    solved_range = col1.slider("Solved %", solved_min, solved_max, (solved_min, solved_max), format="%.1f")
-
     temp_min, temp_max = float(df["Mean_Temp"].min()), float(df["Mean_Temp"].max())
     temp_range = col1.slider("Mean Temperature", temp_min, temp_max, (temp_min, temp_max), format="%.1f")
 
@@ -279,7 +270,6 @@ with tab2:
         & df["Crime type"].isin(selected_crime_types)
         & df["Rural_Urban"].isin(selected_rural_urban)
         & df["Crime_Count"].between(crime_count_range[0], crime_count_range[1])
-        & df["Solved_%"].between(solved_range[0], solved_range[1])
         & df["Mean_Temp"].between(temp_range[0], temp_range[1])
         & df["Sunshine_Duration"].between(sun_range[0], sun_range[1])
         & df["Total_Rainfall"].between(rain_range[0], rain_range[1])
