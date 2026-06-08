@@ -55,6 +55,9 @@ with tab1:
     if 'clicked_force' not in st.session_state:
         st.session_state.clicked_force = None
 
+    if 'clicked_lsoa' not in st.session_state:
+        st.session_state.clicked_lsoa = None
+
     # Headers and filters
     @st.fragment(run_every=None)
     def head_and_filt():
@@ -137,13 +140,13 @@ with tab1:
             center_lon = force_geom.geometry.centroid.x.iloc[0]
             
             m2 = folium.Map(location=[center_lat, center_lon], zoom_start=9, min_zoom=8)
-            
-            # draw the clipped LSOAs
+
+            #draw the clipped LSOAs
             folium.GeoJson(
                 clipped_lsoas,
+                tooltip=folium.GeoJsonTooltip(fields=['LSOA21NM']),
                 style_function=lambda x: {'fillColor': 'transparent', 'color': 'red', 'weight': 1}
             ).add_to(m2)
-            
             
             # draw the thick Police boundary over it
             folium.GeoJson(
@@ -151,9 +154,17 @@ with tab1:
                 style_function=lambda x: {'fillColor': 'transparent', 'color': 'black', 'weight': 4}
             ).add_to(m2)
             
-            st_folium(m2, height=500, use_container_width=True, key="zoomed_map")
+            map_data_lsoa = st_folium(m2, height=500, use_container_width=True, key="zoomed_map")
 
-        with col2:
+            if map_data_lsoa and map_data_lsoa.get('last_active_drawing'):
+                clicked_properties = map_data_lsoa['last_active_drawing']['properties']
+                if 'LSOA21NM' in clicked_properties:
+                    clicked_lsoa_name = clicked_properties['LSOA21NM']
+                    st.session_state.clicked_lsoa = clicked_lsoa_name
+                    st.toast(f"Selected: {clicked_lsoa_name}")
+                    st.rerun(scope='fragment')
+
+        with col2: 
                 if st.session_state.clicked_force:
                     force_df = df[df['Police Territory'].str.contains(st.session_state.clicked_force)]
                     st.subheader("Seasonal Comparison")
