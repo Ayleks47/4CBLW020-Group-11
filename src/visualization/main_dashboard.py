@@ -133,18 +133,18 @@ def zoomed_lsoa():
         center_lon = force_geom.geometry.centroid.x.iloc[0]
         
         m2 = folium.Map(location=[center_lat, center_lon], zoom_start=9, min_zoom=8)
+        
+        # draw the thick Police boundary over it
+        folium.GeoJson(
+            force_geom,
+            style_function=lambda x: {'fillColor': 'transparent', 'color': 'black', 'weight': 4}
+        ).add_to(m2)
 
         #draw the clipped LSOAs
         folium.GeoJson(
             clipped_lsoas,
             tooltip=folium.GeoJsonTooltip(fields=['LSOA21NM']),
             style_function=lambda x: {'fillColor': 'transparent', 'color': 'red', 'weight': 1}
-        ).add_to(m2)
-        
-        # draw the thick Police boundary over it
-        folium.GeoJson(
-            force_geom,
-            style_function=lambda x: {'fillColor': 'transparent', 'color': 'black', 'weight': 4}
         ).add_to(m2)
         
         map_data_lsoa = st_folium(m2, height=500, use_container_width=True, key="zoomed_map")
