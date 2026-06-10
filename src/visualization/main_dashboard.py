@@ -152,7 +152,7 @@ def zoomed_lsoa():
         try:
             force_pred = df[df['Police Territory'].str.contains(st.session_state.clicked_force)].merge(
                 sarima_df,
-                on='Predicted'
+                on='LSOA code'
             )
             highlight_codes = set(force_pred[force_pred['Predicted'].astype(float) > float(threshold)]['LSOA code'].astype(str).tolist())
         except Exception:
@@ -199,12 +199,13 @@ def zoomed_lsoa():
                     return {'fillColor': '#ff5733', 'color': 'red', 'weight': 1, 'fillOpacity': 0.6}
             except Exception:
                 pass
-            return {'fillColor': 'transparent', 'color': 'red', 'weight': 1}
+            return {'fillColor': 'transparent', 'color': 'black', 'weight': 1}
 
         folium.GeoJson(
             clipped_lsoas,
             tooltip=folium.GeoJsonTooltip(fields=['LSOA21NM']),
             style_function=lsoa_style
+            # style_function=lambda x: {'fillColor': 'transparent', 'color': 'red', 'weight': 1}
         ).add_to(m2)
         
         map_data_lsoa = st_folium(m2, height=500, use_container_width=True, key="zoomed_map")
@@ -214,19 +215,24 @@ def zoomed_lsoa():
             if 'LSOA21NM' in clicked_properties:
                 clicked_lsoa_name = clicked_properties['LSOA21NM']
                 st.session_state.clicked_lsoa = clicked_lsoa_name
-                st.toast(f"Selected: {clicked_lsoa_name}")
-                st.rerun(scope='fragment')
+                # st.toast(f"Selected: {clicked_lsoa_name}")
+                # st.rerun(scope='fragment')
 
     with col2: 
-            if st.session_state.clicked_force:
-                st.subheader("Seasonal Comparison")
-                # display_df = df[['Name', 'Seasonal_Baseline', 'Predicted_Count', 'Predicted_Spike']].sort_values(by='Predicted_Spike', ascending=False)
-                display_df = force_df[['LSOA code','LSOA name', 'Predicted']].sort_values('Predicted', ascending=False).head()
+            if st.session_state.clicked_lsoa:
+                st.subheader(f"Details: {st.session_state.clicked_lsoa}")
+                
+                if st.button("✕ Clear Selection"):
+                    st.session_state.clicked_lsoa = None
+                    st.rerun(scope='fragment')
+                
+                # Display the clicked LSOA's data
+                force_df['Month'] = pd.to_datetime(force_df['Month'])
+                display_df = force_df[force_df['LSOA name'] == st.session_state.clicked_lsoa][['Month','LSOA code','LSOA name', 'Predicted']]
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
                 st.subheader("Resource Recommendation")
-                selected_lsoa = st.selectbox("Select Target Area:", force_df['LSOA name'])
-
-                lsoa_data = force_df[force_df['LSOA name'] == selected_lsoa].iloc[0]
+                
+                lsoa_data = force_df[force_df['LSOA name'] == st.session_state.clicked_lsoa].iloc[0]
                 #TODO: include predictions
             #     spike = lsoa_data['Predicted_Spike']
             #     is_localized = lsoa_data['Is_Localized']
@@ -239,8 +245,9 @@ def zoomed_lsoa():
             #         st.info("📊 **Spatial Analysis: Broad Increase Detected.**\n\n**Recommendation:** The predicted increase is spread across the majority of the police force area. A targeted hotspot patrol response is not recommended here.")
             #     else:
             #         st.success("✅ **Spatial Analysis: Normal Baseline.**\n\n**Recommendation:** Expected crime levels are within standard seasonal variations. Maintain normal allocations.")
-            # else:
-            #     st.info("Please click a Police Force on the map to begin the analysis.")
+            #  <10 
+            else:
+                st.info("Click an LSOA on the map to view details and recommendations.")
 
 @st.fragment
 # switches the different map layouts
@@ -256,7 +263,7 @@ def tab1():
     head_and_filt()
     st.markdown("---")
     dynamic_fragment_container()
-    st.toast("Done loading")
+    # st.toast("Done loading")
 
 
 # Streamlit doesn't allow more than 1 lambda function :(

@@ -16,4 +16,5 @@ oco_df = pd.read_parquet(oco)
 
 sarima_df.rename(columns={sarima_df.columns[0]: 'Index', sarima_df.columns[2]: 'Predicted'}, inplace=True)
 
-print(oco_df.columns)
+print(oco_df.head())
+print(sarima_df.head())
