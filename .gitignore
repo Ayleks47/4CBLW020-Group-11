@@ -5,3 +5,16 @@
 merged_data/
 merged_data/merged_crime_dataset.parquet
 data/
+.venv/
+env/
+venv/
+.vscode/
+*.csv
+*.parquet
+*.xlsx
+*.json
+*.geojson
+*.shp
+*.shx
+*.dbf
+*.prj
