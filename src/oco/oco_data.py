@@ -9,7 +9,7 @@ from datetime import date as date_func
 print("DATA PREPARATION")
 
 # load
-df = pd.read_parquet("master_final_4.parquet")
+df = pd.read_parquet("src\oco\master_final_4.parquet")
 print("rows:", len(df))
 
 # sample for quick checks

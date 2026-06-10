@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import ttest_rel, wilcoxon
 
 # load OCO predictions
-oco = pd.read_parquet("oco_outlier_optimised.parquet")
+oco = pd.read_parquet("src\oco\oco_outlier_optimised.parquet")
 print("OCO columns:", oco.columns.tolist())
 print("rows:", len(oco))
 print("OCO MAE:", oco['abs_error'].mean())
@@ -15,7 +15,7 @@ oco = oco[['LSOA_code', 'Month', 'total_crimes', 'predicted_crime', 'abs_error']
 oco = oco.drop_duplicates(['LSOA_code', 'Month'])
 
 # load prepared data (has lag12)
-prep = pd.read_parquet("prepared_data.parquet")
+prep = pd.read_parquet("src\oco\prepared_data.parquet")
 prep = prep[['LSOA_code', 'Month', 'lag12']]
 prep = prep.drop_duplicates(['LSOA_code', 'Month'])
 

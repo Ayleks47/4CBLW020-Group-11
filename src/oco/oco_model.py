@@ -7,7 +7,7 @@ from scipy.stats import boxcox
 from sklearn.preprocessing import MinMaxScaler
 
 # load data
-df = pd.read_parquet("prepared_data.parquet")
+df = pd.read_parquet("src\oco\prepared_data.parquet")
 print("rows:", len(df))
 
 # features
