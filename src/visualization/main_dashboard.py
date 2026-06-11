@@ -58,8 +58,8 @@ def load_data():
 
 police_gdf, lsoa_gdf, df, oco_df, sarima_df = load_data()
 # Rename empty column names
-sarima_df.rename(columns={sarima_df.columns[0]: 'Index', sarima_df.columns[1]: 'LSOA code', sarima_df.columns[2]: 'Predicted'}, inplace=True)
-
+sarima_df = sarima_df.rename(columns={sarima_df.columns[0]: 'Index', sarima_df.columns[1]: 'LSOA code', sarima_df.columns[2]: 'Predicted'}, inplace=True)
+oco_df = oco_df.rename(columns={oco_df.columns[0]: 'LSOA code'})
 
 # Session state/ memory
 if 'clicked_force' not in st.session_state:
@@ -71,7 +71,7 @@ if 'clicked_lsoa' not in st.session_state:
 # Headers and filters
 def head_and_filt():
     st.title("Resource Allocation & Demand Forecaster")
-    this_month = datetime.date.today()
+    this_month = pd.to_datetime(df['Month']).max()
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
         # target_month = st.selectbox("Target Month", ["August 2026", "September 2026"])
@@ -135,24 +135,25 @@ def zoomed_lsoa():
     base_force_df = df[df['Police Territory'].str.contains(st.session_state.clicked_force)].copy()
 
     force_df = base_force_df.merge(
-        sarima_df,
-        on='LSOA code'
+        oco_df,
+        on=['LSOA code','Month']
     )
     # Controls for highlighting
     highlight_hotspots = st.checkbox("Highlight predicted hotspots", value=True)
     try:
-        pred_max = float(force_df['Predicted'].dropna().max())
+        pred_max = int(force_df[force_df['LSOA code'] == st.session_state.clicked_lsoa]['Predicted'].dropna().max())
     except Exception:
-        pred_max = 100.0
-    threshold = st.slider("Prediction threshold", 0.0, max(pred_max, 1.0), float(min(10.0, pred_max)))
+        pred_max = 100
+    threshold = st.slider("Prediction threshold", 0, max(pred_max, 1), int(min(10, pred_max)))
 
     # Compute set of LSOA codes to highlight (based on current police force)
     highlight_codes = set()
     if highlight_hotspots and st.session_state.clicked_force:
         try:
             force_pred = df[df['Police Territory'].str.contains(st.session_state.clicked_force)].merge(
-                sarima_df,
-                on='LSOA code'
+                oco_df,
+                on=['LSOA code','Month'],
+                how='left'
             )
             highlight_codes = set(force_pred[force_pred['Predicted'].astype(float) > float(threshold)]['LSOA code'].astype(str).tolist())
         except Exception:
@@ -228,7 +229,12 @@ def zoomed_lsoa():
                 
                 # Display the clicked LSOA's data
                 force_df['Month'] = pd.to_datetime(force_df['Month'])
-                display_df = force_df[force_df['LSOA name'] == st.session_state.clicked_lsoa][['Month','LSOA code','LSOA name', 'Predicted']]
+                max_month = force_df['Month'].max()
+                min_month = max_month - pd.DateOffset(months=2)
+                display_df = force_df[
+                    (force_df['LSOA name'] == st.session_state.clicked_lsoa) &
+                    force_df['Month'].between(min_month, max_month)
+                ][['Month', 'LSOA code', 'LSOA name', 'Predicted']]
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
                 st.subheader("Resource Recommendation")
                 

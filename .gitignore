@@ -5,3 +5,4 @@
 merged_data/
 merged_data/merged_crime_dataset.parquet
 data/
+.vscode
