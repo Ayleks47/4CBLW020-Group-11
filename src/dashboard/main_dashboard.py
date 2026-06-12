@@ -12,9 +12,7 @@ import json
 
 st.set_page_config(page_title="Resource Allocation Forecaster", layout="wide")
 
-# ---------------------------------------------------------
 # 1. OPTIMIZED DATA LOADING
-# ---------------------------------------------------------
 @st.cache_resource
 def load_and_prep_spatial_models():
     repo_root = Path(__file__).resolve().parents[2]
@@ -42,10 +40,12 @@ def load_and_prep_spatial_models():
         oco = pd.read_parquet(data_dir / "oco_outlier_optimised.parquet")
         oco_baseline = oco.groupby('LSOA_code')['total_crimes'].median().reset_index()
         oco_baseline.columns = ['LSOA code', 'Baseline']
+        oco_baseline = oco_baseline.drop_duplicates(subset=['LSOA code'])
         
         latest_oco_month = oco['Month'].max()
         oco_latest = oco[oco['Month'] == latest_oco_month][['LSOA_code', 'predicted_crime']]
         oco_latest.columns = ['LSOA code', 'Predicted_OCO']
+        oco_latest = oco_latest.drop_duplicates(subset=['LSOA code'])
     except Exception:
         oco_baseline = pd.DataFrame(columns=['LSOA code', 'Baseline'])
         oco_latest = pd.DataFrame(columns=['LSOA code', 'Predicted_OCO'])
@@ -54,16 +54,20 @@ def load_and_prep_spatial_models():
     try:
         sarima = pd.read_csv(data_dir / "SARIMA_forecast.csv")
         sarima_latest = sarima[['LSOA Code', 'Unnamed: 2']].rename(columns={'LSOA Code': 'LSOA code', 'Unnamed: 2': 'Predicted_SARIMA'})
+        sarima_latest = sarima_latest.drop_duplicates(subset=['LSOA code'])
     except Exception:
         sarima_latest = pd.DataFrame(columns=['LSOA code', 'Predicted_SARIMA'])
 
     # 4. BUILD THE MASTER MILP DATAFRAME
+    geo_truth = geo_truth.drop_duplicates(subset=['LSOA code'])
+    
     master_milp = geo_truth.merge(oco_baseline, on='LSOA code', how='left')
     master_milp = master_milp.merge(oco_latest, on='LSOA code', how='left')
     master_milp = master_milp.merge(sarima_latest, on='LSOA code', how='left')
     
     numeric_cols = ['Baseline', 'Predicted_OCO', 'Predicted_SARIMA']
     master_milp[numeric_cols] = master_milp[numeric_cols].fillna(0)
+    master_milp = master_milp.reset_index(drop=True).copy()
 
     return police_gdf, lsoa_gdf, master_milp
 
@@ -90,9 +94,8 @@ neighbors_dict = load_adjacency_matrix()
 if 'clicked_force' not in st.session_state: st.session_state.clicked_force = None
 if 'clicked_lsoa' not in st.session_state: st.session_state.clicked_lsoa = None
 
-# ---------------------------------------------------------
+
 # 2. MILP OPTIMIZATION ENGINE
-# ---------------------------------------------------------
 def run_milp_optimization(opt_df, total_hours, beta, c_max):
     epsilon = 0.01
     weights = {}
@@ -134,9 +137,7 @@ def run_milp_optimization(opt_df, total_hours, beta, c_max):
         })
     return pulp.LpStatus[prob.status], pd.DataFrame(results).sort_values(by='Assigned Hours', ascending=False)
 
-# ---------------------------------------------------------
 # 3. UI SIDEBAR & CONTIGUITY ANALYSIS
-# ---------------------------------------------------------
 @st.fragment
 def milp_ui_sidebar(force_df):
     st.subheader("Operational Constraints (MILP)")
@@ -200,9 +201,7 @@ def milp_ui_sidebar(force_df):
     else:
         st.info("Click an LSOA on the map to view spatial analysis and context.")
 
-# ---------------------------------------------------------
 # 4. MAP VIEWS & STREAMLIT ROUTING
-# ---------------------------------------------------------
 def head_and_filt():
     st.title("Resource Allocation & Demand Forecaster")
     filter_col1, filter_col2 = st.columns(2)
@@ -263,8 +262,9 @@ def zoomed_lsoa():
         map_data_lsoa = st_folium(m2, height=500, width='stretch', key="zoomed_map", returned_objects=["last_active_drawing"])
 
         if map_data_lsoa and map_data_lsoa.get('last_active_drawing'):
-            new_clicked_lsoa = map_data_lsoa['last_active_drawing']['properties']['LSOA21NM']
-            if st.session_state.clicked_lsoa != new_clicked_lsoa:
+            properties = map_data_lsoa['last_active_drawing'].get('properties', {})
+            new_clicked_lsoa = properties.get('LSOA21NM')
+            if new_clicked_lsoa and st.session_state.clicked_lsoa != new_clicked_lsoa:
                 st.session_state.clicked_lsoa = new_clicked_lsoa
                 st.rerun(scope='fragment')
 
