@@ -7,277 +7,290 @@ from streamlit_folium import st_folium
 import datetime
 import dataset_explorer
 import graphs
-
+import pulp
+import json
 
 st.set_page_config(page_title="Resource Allocation Forecaster", layout="wide")
 
-@st.cache_data
-def load_data():
+# ---------------------------------------------------------
+# 1. OPTIMIZED DATA LOADING
+# ---------------------------------------------------------
+@st.cache_resource
+def load_and_prep_spatial_models():
     repo_root = Path(__file__).resolve().parents[2]
     data_dir = repo_root / "data"
-    police_path = data_dir / "SHP" / "Police_Force_Areas_UK.shp"
-    lsoa_path = data_dir / "SHP" / "LSOA" / "LSOA.shp"
-    parquet_path = data_dir / "master_dataset_full_set_no_solved_percent.parquet"
-    oco_path = data_dir / "oco_outlier_optimised.parquet"
-    sarima_path = data_dir / "SARIMA_forecast.csv"
-
-    try:
-        police_gdf = gpd.read_file(police_path).to_crs(epsg=4326)
-        exclude_names = [
-            "Scotland",
-            "Northern Ireland"
-        ]
-        police_gdf = police_gdf[~police_gdf['PFANM'].isin(exclude_names)].copy()
-        lsoa_gdf = gpd.read_file(lsoa_path).to_crs(epsg=4326)
-
-        police_gdf['geometry'] = police_gdf.geometry.simplify(0.005)
-        lsoa_gdf['geometry'] = lsoa_gdf.geometry.simplify(0.005)
-    except Exception as e:
-        st.error(f"Shapefile error: {e}")
-        return None, None, None, None, None
-
-    try:
-        database = pd.read_parquet(parquet_path)
-    except Exception as e:
-        st.error(f"Dataset load error: {e}")
-        return None, None, None, None, None
     
-    try:
-        oco_prediction = pd.read_parquet(oco_path)
-    except Exception as e:
-        st.error(f"Dataset load error: {e}")
-        return None, None, None, None, None
+    # 1. LOAD GEOMETRIES & ESTABLISH GEOGRAPHIC TRUTH
+    police_gdf = gpd.read_file(data_dir / "SHP" / "Police_Force_Areas_UK.shp").to_crs(epsg=4326)
+    police_gdf = police_gdf[~police_gdf['PFANM'].isin(["Scotland", "Northern Ireland"])].copy()
     
+    lsoa_gdf = gpd.read_file(data_dir / "SHP" / "LSOA" / "LSOA.shp").to_crs(epsg=4326)
+    lsoa_centroids = lsoa_gdf.copy()
+    lsoa_centroids['geometry'] = lsoa_centroids.to_crs(epsg=3857).geometry.centroid.to_crs(epsg=4326)
+    
+    joined = gpd.sjoin(lsoa_centroids, police_gdf[['PFANM', 'geometry']], how='inner', predicate='within')
+    lsoa_gdf['PFANM'] = joined['PFANM']
+    
+    police_gdf['geometry'] = police_gdf.geometry.simplify(0.01)
+    lsoa_gdf['geometry'] = lsoa_gdf.geometry.simplify(0.015)
+
+    geo_truth = lsoa_gdf[['LSOA21CD', 'LSOA21NM', 'PFANM']].copy()
+    geo_truth.columns = ['LSOA code', 'LSOA name', 'Police_Force_Map']
+
+    # 2. LOAD & FLATTEN OCO
     try:
-        sarima_prediction = pd.read_csv(sarima_path)
-    except Exception as e:
-        st.error(f"Dataset load error: {e}")
-        return None, None, None, None, None
+        oco = pd.read_parquet(data_dir / "oco_outlier_optimised.parquet")
+        oco_baseline = oco.groupby('LSOA_code')['total_crimes'].median().reset_index()
+        oco_baseline.columns = ['LSOA code', 'Baseline']
+        
+        latest_oco_month = oco['Month'].max()
+        oco_latest = oco[oco['Month'] == latest_oco_month][['LSOA_code', 'predicted_crime']]
+        oco_latest.columns = ['LSOA code', 'Predicted_OCO']
+    except Exception:
+        oco_baseline = pd.DataFrame(columns=['LSOA code', 'Baseline'])
+        oco_latest = pd.DataFrame(columns=['LSOA code', 'Predicted_OCO'])
 
-    return police_gdf, lsoa_gdf, database, oco_prediction, sarima_prediction
+    # 3. LOAD & FLATTEN SARIMA
+    try:
+        sarima = pd.read_csv(data_dir / "SARIMA_forecast.csv")
+        sarima_latest = sarima[['LSOA Code', 'Unnamed: 2']].rename(columns={'LSOA Code': 'LSOA code', 'Unnamed: 2': 'Predicted_SARIMA'})
+    except Exception:
+        sarima_latest = pd.DataFrame(columns=['LSOA code', 'Predicted_SARIMA'])
 
-police_gdf, lsoa_gdf, df, oco_df, sarima_df = load_data()
-# Rename empty column names
-sarima_df.rename(columns={sarima_df.columns[0]: 'Index', sarima_df.columns[1]: 'LSOA code', sarima_df.columns[2]: 'Predicted'}, inplace=True)
+    # 4. BUILD THE MASTER MILP DATAFRAME
+    master_milp = geo_truth.merge(oco_baseline, on='LSOA code', how='left')
+    master_milp = master_milp.merge(oco_latest, on='LSOA code', how='left')
+    master_milp = master_milp.merge(sarima_latest, on='LSOA code', how='left')
+    
+    numeric_cols = ['Baseline', 'Predicted_OCO', 'Predicted_SARIMA']
+    master_milp[numeric_cols] = master_milp[numeric_cols].fillna(0)
 
+    return police_gdf, lsoa_gdf, master_milp
 
-# Session state/ memory
-if 'clicked_force' not in st.session_state:
-    st.session_state.clicked_force = None
+@st.cache_resource
+def load_database():
+    try:
+        return pd.read_parquet(Path(__file__).resolve().parents[2] / "data" / "master_dataset_full_set_no_solved_percent.parquet")
+    except Exception:
+        return None
 
-if 'clicked_lsoa' not in st.session_state:
-    st.session_state.clicked_lsoa = None
+@st.cache_resource
+def load_adjacency_matrix():
+    try:
+        with open(Path(__file__).resolve().parents[2] / "data" / "lsoa_neighbors.json", "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
-# Headers and filters
+# Cleaned up global instantiations (no dead functions)
+police_gdf, lsoa_gdf, master_milp_df = load_and_prep_spatial_models()
+df = load_database()
+neighbors_dict = load_adjacency_matrix()
+
+if 'clicked_force' not in st.session_state: st.session_state.clicked_force = None
+if 'clicked_lsoa' not in st.session_state: st.session_state.clicked_lsoa = None
+
+# ---------------------------------------------------------
+# 2. MILP OPTIMIZATION ENGINE
+# ---------------------------------------------------------
+def run_milp_optimization(opt_df, total_hours, beta, c_max):
+    epsilon = 0.01
+    weights = {}
+    sum_baseline = opt_df['Baseline'].sum() if opt_df['Baseline'].sum() > 0 else 0.01
+        
+    for _, row in opt_df.iterrows():
+        F_i, B_i, lsoa = row['Predicted'], row['Baseline'], row['LSOA code']
+        weights[lsoa] = (F_i - B_i) / (B_i + epsilon) if F_i > 10 else 0.0
+            
+    prob = pulp.LpProblem("Patrol_Allocation", pulp.LpMaximize)
+    lsoas = opt_df['LSOA code'].unique().tolist()
+    
+    x_vars = pulp.LpVariable.dicts("Hours", lsoas, lowBound=0, cat='Continuous')
+    prob += pulp.lpSum([weights[i] * x_vars[i] for i in lsoas]), "Objective"
+    prob += pulp.lpSum([x_vars[i] for i in lsoas]) <= total_hours, "Capacity_Constraint"
+    
+    infeasible_risk = False
+    for i in lsoas:
+        B_i = opt_df.loc[opt_df['LSOA code'] == i, 'Baseline'].values[0]
+        min_hours = beta * (total_hours * (B_i / sum_baseline))
+        max_hours = c_max * total_hours
+        
+        if min_hours > max_hours: infeasible_risk = True
+        prob += x_vars[i] >= min_hours, f"Floor_{i}"
+        prob += x_vars[i] <= max_hours, f"Cap_{i}"
+        
+    if infeasible_risk: return "Infeasible", None
+        
+    prob.solve(pulp.PULP_CBC_CMD(msg=False))
+    
+    results = []
+    for i in lsoas:
+        results.append({
+            'LSOA code': i,
+            'LSOA name': opt_df.loc[opt_df['LSOA code'] == i, 'LSOA name'].values[0],
+            'Forecast': round(opt_df.loc[opt_df['LSOA code'] == i, 'Predicted'].values[0], 1),
+            'Surge Weight': round(weights[i], 3),
+            'Assigned Hours': round(x_vars[i].varValue, 1)
+        })
+    return pulp.LpStatus[prob.status], pd.DataFrame(results).sort_values(by='Assigned Hours', ascending=False)
+
+# ---------------------------------------------------------
+# 3. UI SIDEBAR & CONTIGUITY ANALYSIS
+# ---------------------------------------------------------
+@st.fragment
+def milp_ui_sidebar(force_df):
+    st.subheader("Operational Constraints (MILP)")
+    
+    total_hours = st.number_input("Total Force Capacity (Hours)", min_value=100, value=5000, step=100)
+    beta_protection = st.slider("Baseline Protection Factor", 0.0, 1.0, 0.5)
+    max_cap = st.slider("Maximum Saturation Cap", 0.01, 1.0, 0.10)
+    
+    if st.button("Generate Optimal Deployment Schedule", type="primary"):
+        with st.spinner("Optimizing deployment..."):
+            status, optimal_df = run_milp_optimization(force_df, total_hours, beta_protection, max_cap)
+            
+            if status == "Infeasible":
+                st.error("❌ **Constraint Error:** Your Maximum Cap is too restrictive to support your Baseline Protection. Please adjust the sliders.")
+            elif status == "Optimal":
+                st.success("✅ **Optimal Schedule Generated**")
+                st.dataframe(optimal_df[['LSOA name', 'Forecast', 'Assigned Hours']].head(10), width='stretch', hide_index=True)
+            else:
+                st.warning(f"Solver Status: {status}")
+
+    st.markdown("---")
+    
+    if st.session_state.clicked_lsoa:
+        st.subheader(f"Area Details: {st.session_state.clicked_lsoa}")
+        if st.button("✕ Clear Selection"):
+            st.session_state.clicked_lsoa = None
+            st.rerun(scope='fragment')
+        
+        try:
+            # FIX: Simplified display logic for flat data
+            display_df = force_df[force_df['LSOA name'] == st.session_state.clicked_lsoa][['LSOA name', 'Predicted']].copy()
+            display_df['Predicted'] = display_df['Predicted'].round(1)
+            st.dataframe(display_df, width='stretch', hide_index=True)
+            
+            # FIX: Streamlined 50% Contiguity Rule Logic
+            st.markdown("### Spatial Contiguity Analysis")
+            adjacent_lsoas = neighbors_dict.get(st.session_state.clicked_lsoa, [])
+            
+            if adjacent_lsoas:
+                total_neighbors, surging_neighbors = 0, 0
+                for neighbor in adjacent_lsoas:
+                    # force_df is already perfectly filtered to the current map state and active model
+                    neighbor_data = force_df[force_df['LSOA name'] == neighbor]
+                    if not neighbor_data.empty:
+                        total_neighbors += 1
+                        if neighbor_data['Predicted'].sum() > 10: # Surge threshold
+                            surging_neighbors += 1
+                
+                if total_neighbors > 0:
+                    surge_ratio = surging_neighbors / total_neighbors
+                    st.progress(surge_ratio)
+                    if surge_ratio >= 0.5:
+                        st.error(f"🚨 **Macro-Surge Detected**\n\n{surging_neighbors} of {total_neighbors} immediate adjacent neighborhoods are also forecasting surges. **Do not pull resources from neighbors.** Rely entirely on the force-wide MILP redistribution.")
+                    else:
+                        st.warning(f"⚠️ **Micro-Spike Detected**\n\nOnly {surging_neighbors} of {total_neighbors} immediate adjacent neighborhoods are surging. You may safely shift discretionary patrol time from quiet adjacent zones.")
+            else:
+                st.info("No spatial adjacency data available for this LSOA.")
+                
+        except Exception as e:
+            st.warning(f"No prediction data available for this specific LSOA. Error: {e}")
+    else:
+        st.info("Click an LSOA on the map to view spatial analysis and context.")
+
+# ---------------------------------------------------------
+# 4. MAP VIEWS & STREAMLIT ROUTING
+# ---------------------------------------------------------
 def head_and_filt():
     st.title("Resource Allocation & Demand Forecaster")
-    this_month = datetime.date.today()
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
-        # target_month = st.selectbox("Target Month", ["August 2026", "September 2026"])
         st.markdown("Target Month:")
-        st.subheader(str((this_month + datetime.timedelta(days=32)).strftime("%B %Y")))
+        st.subheader(str((datetime.date.today() + datetime.timedelta(days=32)).strftime("%B %Y")))
     with filter_col2:
-        if df is None:
-            st.error("Failed to load the main dataset. Check that the data files exist and the paths are correct.")
-            st.stop()
-        # crime_type = st.selectbox("Crime Focus", df['Crime type'].dropna().unique().tolist())
+        if df is None: st.error("Failed to load dataset."); st.stop()
 
-
-# Main layout
 def main_layout():
     col1, col2 = st.columns([2, 1])
-
     if police_gdf is not None:
         with col1:
-            # national map
-            
             st.subheader("Select a Police Force to evaluate")
-            
-            m = folium.Map(
-                location=[52.5, 0.5],
-                zoom_start=6,
-                min_zoom=6,          # Prevents zooming out further than the default view
-                max_bounds=True,     # Activates the panning boundaries
-                min_lat=49.5,        # Southernmost point (approx)
-                max_lat=61.0,        # Northernmost point (approx)
-                min_lon=-8.0,        # Westernmost point (approx)
-                max_lon=3.5          # Easternmost point (approx)
-            )
-            
-            # draw polygons and make them clickable
-            folium.GeoJson(
-                police_gdf,
-                name="Police Forces",
-                # NOTE: Check your shapefile! If the column isn't 'PFANM', change this to match your data
-                tooltip=folium.GeoJsonTooltip(fields=['PFANM']),
-                style_function=lambda x: {'fillColor': '#3186cc', 'color': 'black', 'weight': 1, 'fillOpacity': 0.4}
-            ).add_to(m)
+            m = folium.Map(location=[52.5, 0.5], zoom_start=6, min_zoom=6, max_bounds=True, min_lat=49.5, max_lat=61.0, min_lon=-8.0, max_lon=3.5)
+            folium.GeoJson(police_gdf, tooltip=folium.GeoJsonTooltip(fields=['PFANM']), style_function=lambda x: {'fillColor': '#3186cc', 'color': 'black', 'weight': 1, 'fillOpacity': 0.4}).add_to(m)
+            map_data = st_folium(m, height=500, width='stretch', key="national_map", returned_objects=["last_active_drawing"])
 
-            # 
-            map_data = st_folium(m, height=500, use_container_width=True, key="national_map")
-
-            # TODO: fix dark screen when interacting with the map
             if map_data and map_data.get('last_active_drawing'):
-                clicked_name = map_data['last_active_drawing']['properties']['PFANM']
-                st.session_state.clicked_force = clicked_name
-                st.info(clicked_name)
+                st.session_state.clicked_force = map_data['last_active_drawing']['properties']['PFANM']
                 st.rerun(scope='fragment')
-                
-            
-        with col2:
-            st.info("Please click a Police Force on the map to begin the analysis.")
+        with col2: st.info("Please click a Police Force on the map to begin the analysis.")
 
-
-# zoomed LSOAs fragment
 def zoomed_lsoa():
-    # build base force dataframe
-    base_force_df = df[df['Police Territory'].str.contains(st.session_state.clicked_force)].copy()
-
-    force_df = base_force_df.merge(
-        sarima_df,
-        on='LSOA code'
-    )
-    # Controls for highlighting
-    highlight_hotspots = st.checkbox("Highlight predicted hotspots", value=True)
-    try:
-        pred_max = float(force_df['Predicted'].dropna().max())
-    except Exception:
-        pred_max = 100.0
-    threshold = st.slider("Prediction threshold", 0.0, max(pred_max, 1.0), float(min(10.0, pred_max)))
-
-    # Compute set of LSOA codes to highlight (based on current police force)
-    highlight_codes = set()
-    if highlight_hotspots and st.session_state.clicked_force:
-        try:
-            force_pred = df[df['Police Territory'].str.contains(st.session_state.clicked_force)].merge(
-                sarima_df,
-                on='LSOA code'
-            )
-            highlight_codes = set(force_pred[force_pred['Predicted'].astype(float) > float(threshold)]['LSOA code'].astype(str).tolist())
-        except Exception:
-            highlight_codes = set()
-
+    force_geom = police_gdf[police_gdf['PFANM'] == st.session_state.clicked_force]
+    clipped_lsoas = lsoa_gdf[lsoa_gdf['PFANM'] == st.session_state.clicked_force][['LSOA21NM', 'geometry']]
+    
+    force_milp_data = master_milp_df[master_milp_df['Police_Force_Map'] == st.session_state.clicked_force].copy()
+    
     col1, col2 = st.columns([2, 1])
+    
+    with col2:
+        st.subheader("Forecast Engine")
+        model_choice = st.radio("Select Prediction Model:", ["SARIMA", "OCO (Optimised)"], horizontal=True)
+        
+        if model_choice == "SARIMA":
+            force_milp_data['Predicted'] = force_milp_data['Predicted_SARIMA']
+        else:
+            force_milp_data['Predicted'] = force_milp_data['Predicted_OCO']
+            
+        force_milp_data = force_milp_data[~force_milp_data['LSOA name'].str.contains('Unknown|None', na=False, case=False)]
 
     with col1:
         st.subheader(f"Localized LSOA Forecast: {st.session_state.clicked_force}")
-                    
-        # button to go back
         if st.button("⬅️ Back to National Map"):
             st.session_state.clicked_force = None
+            st.session_state.clicked_lsoa = None
             st.rerun(scope='fragment')
             
-            
-        # region masking
-        force_geom = police_gdf[police_gdf['PFANM'] == st.session_state.clicked_force]
-        clipped_lsoas = gpd.clip(lsoa_gdf, force_geom)
-        
-        center_lat = force_geom.geometry.centroid.y.iloc[0]
-        center_lon = force_geom.geometry.centroid.x.iloc[0]
+        projected_geom = force_geom.to_crs(epsg=3857)
+        center_lat = projected_geom.geometry.centroid.to_crs(epsg=4326).y.iloc[0]
+        center_lon = projected_geom.geometry.centroid.to_crs(epsg=4326).x.iloc[0]
         
         m2 = folium.Map(location=[center_lat, center_lon], zoom_start=9, min_zoom=8)
+        folium.GeoJson(force_geom, style_function=lambda x: {'fillColor': 'transparent', 'color': 'black', 'weight': 4}).add_to(m2)
+        folium.GeoJson(clipped_lsoas, tooltip=folium.GeoJsonTooltip(fields=['LSOA21NM']), style_function=lambda x: {'fillColor': 'transparent', 'color': '#3186cc', 'weight': 1}).add_to(m2)
         
-        # draw the thick Police boundary over it
-        folium.GeoJson(
-            force_geom,
-            style_function=lambda x: {'fillColor': 'transparent', 'color': 'black', 'weight': 4}
-        ).add_to(m2)
-
-        # draw the clipped LSOAs with dynamic styling based on predictions
-        def lsoa_style(feature):
-            props = feature.get('properties', {}) or {}
-            # possible property keys that contain the LSOA code
-            code = None
-            for k in ('LSOA21CD', 'LSOA11CD', 'LSOA Code', 'LSOA_code', 'LSOA code'):
-                if k in props:
-                    code = props[k]
-                    break
-            # highlight if code in computed set
-            try:
-                if code is not None and str(code) in highlight_codes:
-                    return {'fillColor': '#ff5733', 'color': 'red', 'weight': 1, 'fillOpacity': 0.6}
-            except Exception:
-                pass
-            return {'fillColor': 'transparent', 'color': 'black', 'weight': 1}
-
-        folium.GeoJson(
-            clipped_lsoas,
-            tooltip=folium.GeoJsonTooltip(fields=['LSOA21NM']),
-            style_function=lsoa_style
-            # style_function=lambda x: {'fillColor': 'transparent', 'color': 'red', 'weight': 1}
-        ).add_to(m2)
-        
-        map_data_lsoa = st_folium(m2, height=500, use_container_width=True, key="zoomed_map")
+        map_data_lsoa = st_folium(m2, height=500, width='stretch', key="zoomed_map", returned_objects=["last_active_drawing"])
 
         if map_data_lsoa and map_data_lsoa.get('last_active_drawing'):
-            clicked_properties = map_data_lsoa['last_active_drawing']['properties']
-            if 'LSOA21NM' in clicked_properties:
-                clicked_lsoa_name = clicked_properties['LSOA21NM']
-                st.session_state.clicked_lsoa = clicked_lsoa_name
-                # st.toast(f"Selected: {clicked_lsoa_name}")
-                # st.rerun(scope='fragment')
+            new_clicked_lsoa = map_data_lsoa['last_active_drawing']['properties']['LSOA21NM']
+            if st.session_state.clicked_lsoa != new_clicked_lsoa:
+                st.session_state.clicked_lsoa = new_clicked_lsoa
+                st.rerun(scope='fragment')
 
     with col2: 
-            if st.session_state.clicked_lsoa:
-                st.subheader(f"Details: {st.session_state.clicked_lsoa}")
-                
-                if st.button("✕ Clear Selection"):
-                    st.session_state.clicked_lsoa = None
-                    st.rerun(scope='fragment')
-                
-                # Display the clicked LSOA's data
-                force_df['Month'] = pd.to_datetime(force_df['Month'])
-                display_df = force_df[force_df['LSOA name'] == st.session_state.clicked_lsoa][['Month','LSOA code','LSOA name', 'Predicted']]
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
-                st.subheader("Resource Recommendation")
-                
-                lsoa_data = force_df[force_df['LSOA name'] == st.session_state.clicked_lsoa].iloc[0]
-                #TODO: include predictions
-            #     spike = lsoa_data['Predicted_Spike']
-            #     is_localized = lsoa_data['Is_Localized']
-
-            #     st.metric(label=f"Spike vs. {target_month.split()[0]} Baseline", value=f"+{spike}%")
-
-            #     if spike > 15.0 and is_localized:
-            #         st.warning("⚠️ **Spatial Analysis: Localized Spike Detected.**\n\n**Recommendation:** Temporarily redistribute flexible patrol time from low-risk zones to this hotspot. Do not permanently increase overall force headcount.")
-            #     elif spike > 15.0 and not is_localized:
-            #         st.info("📊 **Spatial Analysis: Broad Increase Detected.**\n\n**Recommendation:** The predicted increase is spread across the majority of the police force area. A targeted hotspot patrol response is not recommended here.")
-            #     else:
-            #         st.success("✅ **Spatial Analysis: Normal Baseline.**\n\n**Recommendation:** Expected crime levels are within standard seasonal variations. Maintain normal allocations.")
-            #  <10 
-            else:
-                st.info("Click an LSOA on the map to view details and recommendations.")
+        milp_ui_sidebar(force_milp_data)
 
 @st.fragment
-# switches the different map layouts
 def dynamic_fragment_container():
-    if st.session_state.clicked_force is None:
-        main_layout()
-        
-    else:
-        zoomed_lsoa()
+    if st.session_state.clicked_force is None: main_layout()
+    else: zoomed_lsoa()
 
 def tab1():
-    # Layout configuration
     head_and_filt()
     st.markdown("---")
     dynamic_fragment_container()
-    # st.toast("Done loading")
 
-
-# Streamlit doesn't allow more than 1 lambda function :(
 def explorer_page():
-    return dataset_explorer.crime_dataset_explorer(df)
+    dataset_explorer.crime_dataset_explorer(df)
 
 def graphs_page():
-    return graphs.tab3(df)
+    graphs.tab3(df)
 
-# Navigation menu for pages
 pg = st.navigation([
     st.Page(tab1, title="Map", default=True),
-    st.Page(explorer_page, title="Explorer"),
-    st.Page(graphs_page, title="Graphs")
+    st.Page(explorer_page, title="Explorer", url_path="explorer"),
+    st.Page(graphs_page, title="Graphs", url_path="graphs")
 ], position="top")
 
 pg.run()
