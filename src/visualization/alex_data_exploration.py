@@ -19,5 +19,5 @@ sarima_df = sarima_df.rename(columns={sarima_df.columns[0]: 'Index', sarima_df.c
 oco_df = oco_df.rename(columns={oco_df.columns[0]: 'LSOA code'})
 
 # print(oco_df[oco_df["Month"].between('2020-01-01', '2026-03-01')]['Month'])
-print(oco_df.columns)
-print(df.columns)
+print(f"OCO: {oco_df.columns}")
+print(f"SARIMA: {sarima_df.columns}")

@@ -18,7 +18,8 @@ def load_data():
     police_path = data_dir / "SHP" / "Police_Force_Areas_UK.shp"
     lsoa_path = data_dir / "SHP" / "LSOA" / "LSOA.shp"
     parquet_path = data_dir / "master_dataset_full_set_no_solved_percent.parquet"
-    oco_path = data_dir / "oco_outlier_optimised.parquet"
+    # rename your file to "oco_forecast.csv"
+    oco_path = data_dir / "oco_forecast.csv"
     sarima_path = data_dir / "SARIMA_forecast.csv"
 
     try:
@@ -43,7 +44,7 @@ def load_data():
         return None, None, None, None, None
     
     try:
-        oco_prediction = pd.read_parquet(oco_path)
+        oco_prediction = pd.read_csv(oco_path)
     except Exception as e:
         st.error(f"Dataset load error: {e}")
         return None, None, None, None, None
@@ -58,8 +59,12 @@ def load_data():
 
 police_gdf, lsoa_gdf, df, oco_df, sarima_df = load_data()
 # Rename empty column names
-sarima_df = sarima_df.rename(columns={sarima_df.columns[0]: 'Index', sarima_df.columns[1]: 'LSOA code', sarima_df.columns[2]: 'Predicted'}, inplace=True)
-oco_df = oco_df.rename(columns={oco_df.columns[0]: 'LSOA code'})
+sarima_df = sarima_df.rename(columns={sarima_df.columns[0]: 'Index', sarima_df.columns[1]: 'LSOA code', sarima_df.columns[2]: 'Predicted'})
+oco_df = oco_df.rename(columns={oco_df.columns[0]: 'LSOA code', oco_df.columns[1]: 'Predicted'})
+# reduce size of the dataframe in map for faster loading
+# TODO: Sum crime count
+main_df = df[['Month', 'LSOA code', 'LSOA name', 'Police Territory', 'Crime_Count']].drop_duplicates().copy()
+
 
 # Session state/ memory
 if 'clicked_force' not in st.session_state:
@@ -71,14 +76,14 @@ if 'clicked_lsoa' not in st.session_state:
 # Headers and filters
 def head_and_filt():
     st.title("Resource Allocation & Demand Forecaster")
-    this_month = pd.to_datetime(df['Month']).max()
+    this_month = pd.to_datetime(main_df['Month']).max()
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
         # target_month = st.selectbox("Target Month", ["August 2026", "September 2026"])
         st.markdown("Target Month:")
         st.subheader(str((this_month + datetime.timedelta(days=32)).strftime("%B %Y")))
     with filter_col2:
-        if df is None:
+        if main_df is None:
             st.error("Failed to load the main dataset. Check that the data files exist and the paths are correct.")
             st.stop()
         # crime_type = st.selectbox("Crime Focus", df['Crime type'].dropna().unique().tolist())
@@ -130,30 +135,36 @@ def main_layout():
 
 
 # zoomed LSOAs fragment
+
 def zoomed_lsoa():
     # build base force dataframe
-    base_force_df = df[df['Police Territory'].str.contains(st.session_state.clicked_force)].copy()
-
+    base_force_df = main_df[main_df['Police Territory'].str.contains(st.session_state.clicked_force)].copy()
+    
+    selected_model = st.selectbox("Select model", ('OCO', 'SARIMA'))
+    selected_df = sarima_df if selected_model == 'SARIMA' else oco_df
+    
     force_df = base_force_df.merge(
-        oco_df,
-        on=['LSOA code','Month']
+        selected_df,
+        on='LSOA code'
     )
     # Controls for highlighting
-    highlight_hotspots = st.checkbox("Highlight predicted hotspots", value=True)
-    try:
-        pred_max = int(force_df[force_df['LSOA code'] == st.session_state.clicked_lsoa]['Predicted'].dropna().max())
-    except Exception:
-        pred_max = 100
-    threshold = st.slider("Prediction threshold", 0, max(pred_max, 1), int(min(10, pred_max)))
-
+    # highlight_hotspots = st.checkbox("Highlight predicted hotspots", value=True)
+    # try:
+    #     pred_max = int(force_df[force_df['LSOA code'] == st.session_state.clicked_lsoa]['Predicted'].dropna().max())
+    # except Exception:
+    #     pred_max = 100
+    # threshold = st.slider("Prediction threshold", 0, max(pred_max, 1), int(min(10, pred_max)))
+    threshold = 10
+    highlight_hotspots = True
     # Compute set of LSOA codes to highlight (based on current police force)
     highlight_codes = set()
     if highlight_hotspots and st.session_state.clicked_force:
         try:
-            force_pred = df[df['Police Territory'].str.contains(st.session_state.clicked_force)].merge(
-                oco_df,
-                on=['LSOA code','Month'],
-                how='left'
+            selected_df = sarima_df if selected_model == 'SARIMA' else oco_df
+            force_pred = main_df[main_df['Police Territory'].str.contains(st.session_state.clicked_force)].merge(
+                selected_df,
+                # on=['LSOA code','Month'],
+                on='LSOA code',
             )
             highlight_codes = set(force_pred[force_pred['Predicted'].astype(float) > float(threshold)]['LSOA code'].astype(str).tolist())
         except Exception:
@@ -167,7 +178,7 @@ def zoomed_lsoa():
         # button to go back
         if st.button("⬅️ Back to National Map"):
             st.session_state.clicked_force = None
-            st.rerun(scope='fragment')
+            # st.rerun(scope='fragment')
             
             
         # region masking
@@ -220,21 +231,21 @@ def zoomed_lsoa():
                 # st.rerun(scope='fragment')
 
     with col2: 
-            if st.session_state.clicked_lsoa:
+            if st.session_state.clicked_lsoa != None:
                 st.subheader(f"Details: {st.session_state.clicked_lsoa}")
                 
                 if st.button("✕ Clear Selection"):
                     st.session_state.clicked_lsoa = None
-                    st.rerun(scope='fragment')
+                    # st.rerun(scope='fragment')
+                
                 
                 # Display the clicked LSOA's data
                 force_df['Month'] = pd.to_datetime(force_df['Month'])
                 max_month = force_df['Month'].max()
-                min_month = max_month - pd.DateOffset(months=2)
                 display_df = force_df[
                     (force_df['LSOA name'] == st.session_state.clicked_lsoa) &
-                    force_df['Month'].between(min_month, max_month)
-                ][['Month', 'LSOA code', 'LSOA name', 'Predicted']]
+                    force_df['Month'].between(max_month, max_month)
+                ][['LSOA code', 'LSOA name','Crime_Count' ,'Predicted']].drop_duplicates()
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
                 st.subheader("Resource Recommendation")
                 
@@ -268,9 +279,9 @@ def tab1():
     # Layout configuration
     head_and_filt()
     st.markdown("---")
+
     dynamic_fragment_container()
     # st.toast("Done loading")
-
 
 # Streamlit doesn't allow more than 1 lambda function :(
 def explorer_page():
