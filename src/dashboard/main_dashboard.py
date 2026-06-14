@@ -42,8 +42,8 @@ def load_and_prep_spatial_models():
         oco_baseline.columns = ['LSOA code', 'Baseline']
         oco_baseline = oco_baseline.drop_duplicates(subset=['LSOA code'])
         
-        latest_oco_month = oco['Month'].max()
-        oco_latest = oco[oco['Month'] == latest_oco_month][['LSOA_code', 'predicted_crime']]
+        # Rename prediction file to oco_forecast.csv (latest version)
+        oco_latest = pd.read_csv(data_dir / "oco_forecast.csv")
         oco_latest.columns = ['LSOA code', 'Predicted_OCO']
         oco_latest = oco_latest.drop_duplicates(subset=['LSOA code'])
     except Exception:
