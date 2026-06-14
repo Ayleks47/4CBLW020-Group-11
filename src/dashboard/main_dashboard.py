@@ -12,6 +12,9 @@ import json
 
 st.set_page_config(page_title="Resource Allocation Forecaster", layout="wide")
 
+# threshold used to identify surge areas (consistent across UI and MILP)
+SURGE_THRESHOLD = 10
+
 # 1. OPTIMIZED DATA LOADING
 @st.cache_resource
 def load_and_prep_spatial_models():
@@ -103,7 +106,7 @@ def run_milp_optimization(opt_df, total_hours, beta, c_max):
         
     for _, row in opt_df.iterrows():
         F_i, B_i, lsoa = row['Predicted'], row['Baseline'], row['LSOA code']
-        weights[lsoa] = (F_i - B_i) / (B_i + epsilon) if F_i > 10 else 0.0
+        weights[lsoa] = (F_i - B_i) / (B_i + epsilon) if F_i > SURGE_THRESHOLD else 0.0
             
     prob = pulp.LpProblem("Patrol_Allocation", pulp.LpMaximize)
     lsoas = opt_df['LSOA code'].unique().tolist()
@@ -183,7 +186,7 @@ def milp_ui_sidebar(force_df):
                     neighbor_data = force_df[force_df['LSOA name'] == neighbor]
                     if not neighbor_data.empty:
                         total_neighbors += 1
-                        if neighbor_data['Predicted'].sum() > 10: # Surge threshold
+                        if neighbor_data['Predicted'].sum() > SURGE_THRESHOLD: # Surge threshold
                             surging_neighbors += 1
                 
                 if total_neighbors > 0:
@@ -227,7 +230,8 @@ def main_layout():
 
 def zoomed_lsoa():
     force_geom = police_gdf[police_gdf['PFANM'] == st.session_state.clicked_force]
-    clipped_lsoas = lsoa_gdf[lsoa_gdf['PFANM'] == st.session_state.clicked_force][['LSOA21NM', 'geometry']]
+    # include LSOA code column so style function can match against it
+    clipped_lsoas = lsoa_gdf[lsoa_gdf['PFANM'] == st.session_state.clicked_force][['LSOA21CD', 'LSOA21NM', 'geometry']]
     
     force_milp_data = master_milp_df[master_milp_df['Police_Force_Map'] == st.session_state.clicked_force].copy()
     
@@ -250,14 +254,63 @@ def zoomed_lsoa():
             st.session_state.clicked_force = None
             st.session_state.clicked_lsoa = None
             st.rerun(scope='fragment')
+
+        st.button("ℹ️",help="""🟡 Micro-Spike
+                    🔴 Macro-Surge""")
             
         projected_geom = force_geom.to_crs(epsg=3857)
         center_lat = projected_geom.geometry.centroid.to_crs(epsg=4326).y.iloc[0]
         center_lon = projected_geom.geometry.centroid.to_crs(epsg=4326).x.iloc[0]
-        
+
+        # compute per-LSOA surge status (macro / micro / none)
+        try:
+            fm = force_milp_data.copy()
+            fm['is_surging'] = fm['Predicted'] > SURGE_THRESHOLD
+            name_surging = dict(zip(fm['LSOA name'], fm['is_surging']))
+            code_surging = dict(zip(fm['LSOA code'].astype(str), fm['is_surging']))
+
+            status_map = {}
+            for _, row in fm.iterrows():
+                name = row['LSOA name']
+                code = str(row['LSOA code'])
+                neighbors = neighbors_dict.get(name, [])
+                total_neighbors = 0
+                surging_neighbors = 0
+                for n in neighbors:
+                    if n in name_surging:
+                        total_neighbors += 1
+                        if name_surging.get(n, False):
+                            surging_neighbors += 1
+                surge_ratio = (surging_neighbors / total_neighbors) if total_neighbors > 0 else 0.0
+                if surge_ratio >= 0.5:
+                    status_map[code] = 'macro'
+                elif code_surging.get(code, False):
+                    status_map[code] = 'micro'
+                else:
+                    status_map[code] = 'none'
+        except Exception:
+            status_map = {}
+
+        def lsoa_style(feature):
+            props = feature.get('properties', {}) or {}
+            code = None
+            for k in ('LSOA21CD', 'LSOA11CD', 'LSOA Code', 'LSOA_code', 'LSOA code'):
+                if k in props:
+                    code = props[k]
+                    break
+            try:
+                status = status_map.get(str(code)) if code is not None else None
+                if status == 'macro':
+                    return {'fillColor': '#ff5733', 'color': 'red', 'weight': 1, 'fillOpacity': 0.6}
+                if status == 'micro':
+                    return {'fillColor': '#ffd966', 'color': 'orange', 'weight': 1, 'fillOpacity': 0.6}
+            except Exception:
+                pass
+            return {'fillColor': 'transparent', 'color': 'black', 'weight': 1}
+
         m2 = folium.Map(location=[center_lat, center_lon], zoom_start=9, min_zoom=8)
         folium.GeoJson(force_geom, style_function=lambda x: {'fillColor': 'transparent', 'color': 'black', 'weight': 4}).add_to(m2)
-        folium.GeoJson(clipped_lsoas, tooltip=folium.GeoJsonTooltip(fields=['LSOA21NM']), style_function=lambda x: {'fillColor': 'transparent', 'color': '#3186cc', 'weight': 1}).add_to(m2)
+        folium.GeoJson(clipped_lsoas, tooltip=folium.GeoJsonTooltip(fields=['LSOA21NM']), style_function=lsoa_style).add_to(m2)
         
         map_data_lsoa = st_folium(m2, height=500, width='stretch', key="zoomed_map", returned_objects=["last_active_drawing"])
 
