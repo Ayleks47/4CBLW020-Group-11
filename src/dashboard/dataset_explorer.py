@@ -74,4 +74,4 @@ def crime_dataset_explorer(df):
 
 
     col2.dataframe(filtered_df, hide_index=True)
-    st.toast("Done loading tab 2")
+    # st.toast("Done loading tab 2")

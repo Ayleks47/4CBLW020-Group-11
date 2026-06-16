@@ -231,7 +231,7 @@ def head_and_filt():
     filter_col1, filter_col2 = st.columns(2)
     with filter_col1:
         st.markdown("Target Month:")
-        st.subheader(str((datetime.date.today() + datetime.timedelta(days=32)).strftime("%B %Y")))
+        st.subheader(str((pd.to_datetime(df['Month'].max()) + datetime.timedelta(days=32)).strftime("%B %Y")))
     with filter_col2:
         if df is None: st.error("Failed to load dataset."); st.stop()
 
@@ -358,13 +358,13 @@ def tab1():
 def explorer_page():
     dataset_explorer.crime_dataset_explorer(df)
 
-def graphs_page():
-    graphs.tab3(df)
+# def graphs_page():
+#     graphs.tab3(df)
 
 pg = st.navigation([
     st.Page(tab1, title="Map", default=True),
     st.Page(explorer_page, title="Explorer", url_path="explorer"),
-    st.Page(graphs_page, title="Graphs", url_path="graphs")
+    # st.Page(graphs_page, title="Graphs", url_path="graphs")
 ], position="top")
 
 pg.run()
