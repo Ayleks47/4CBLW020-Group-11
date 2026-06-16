@@ -157,7 +157,28 @@ def milp_ui_sidebar(force_df):
                 st.error("❌ **Constraint Error:** Your Maximum Cap is too restrictive to support your Baseline Protection. Please adjust the sliders.")
             elif status == "Optimal":
                 st.success("✅ **Optimal Schedule Generated**")
-                st.dataframe(optimal_df[['LSOA name', 'Forecast', 'Assigned Hours']].head(10), width='stretch', hide_index=True)
+                
+                # Metric proof that all hours were deployed
+                total_assigned = optimal_df['Assigned Hours'].sum()
+                st.metric(label="Total Hours Deployed", value=f"{total_assigned:,.1f}")
+                
+                st.markdown("**Full Deployment Schedule:**")
+                
+                st.dataframe(
+                    optimal_df[['LSOA name', 'Forecast', 'Assigned Hours']], 
+                    width='stretch', 
+                    height=350,
+                    hide_index=True
+                )
+                
+                csv_data = optimal_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Deployment Sheet (CSV)",
+                    data=csv_data,
+                    file_name=f"{st.session_state.clicked_force}_deployment_schedule.csv",
+                    mime="text/csv",
+                    type="primary"
+                )
             else:
                 st.warning(f"Solver Status: {status}")
 
