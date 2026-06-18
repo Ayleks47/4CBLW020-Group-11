@@ -1,0 +1,26 @@
+# Dashboard and UI
+streamlit
+streamlit-folium
+folium
+
+# Core Data and Spatial Processing
+pandas
+geopandas
+numpy
+pyarrow
+
+# Data Pipeline 
+polars
+xarray
+
+# Mathematical Optimization (MILP)
+pulp
+
+# Machine Learning & Stats
+statsmodels
+scipy
+scikit-learn
+
+# Visualization
+matplotlib
+seaborn
