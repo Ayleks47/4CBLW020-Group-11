@@ -99,7 +99,7 @@ if 'clicked_lsoa' not in st.session_state: st.session_state.clicked_lsoa = None
 
 
 # 2. MILP OPTIMIZATION ENGINE
-def run_milp_optimization(opt_df, total_hours, beta, c_max):
+def run_milp_optimization(opt_df, total_hours, beta, c_max, k_cap):
     epsilon = 0.01
     weights = {}
     sum_baseline = opt_df['Baseline'].sum() if opt_df['Baseline'].sum() > 0 else 0.01
@@ -118,8 +118,13 @@ def run_milp_optimization(opt_df, total_hours, beta, c_max):
     infeasible_risk = False
     for i in lsoas:
         B_i = opt_df.loc[opt_df['LSOA code'] == i, 'Baseline'].values[0]
+        F_i = opt_df.loc[opt_df['LSOA code'] == i, 'Predicted'].values[0]
+
         min_hours = beta * (total_hours * (B_i / sum_baseline))
-        max_hours = c_max * total_hours
+
+        max_saturation = c_max * total_hours
+        volume_cap = min_hours + (k_cap * F_i)
+        max_hours = min(volume_cap, max_saturation)
         
         if min_hours > max_hours: infeasible_risk = True
         prob += x_vars[i] >= min_hours, f"Floor_{i}"
@@ -148,10 +153,11 @@ def milp_ui_sidebar(force_df):
     total_hours = st.number_input("Total Force Capacity (Hours)", min_value=100, value=5000, step=100)
     beta_protection = st.slider("Baseline Protection Factor", 0.0, 1.0, 0.5)
     max_cap = st.slider("Maximum Saturation Cap", 0.01, 1.0, 0.10)
+    k_cap = st.slider("Max Surge Hours per Forecasted Crime", 1.0, 50.0, 10.0)
     
     if st.button("Generate Optimal Deployment Schedule", type="primary"):
         with st.spinner("Optimizing deployment..."):
-            status, optimal_df = run_milp_optimization(force_df, total_hours, beta_protection, max_cap)
+            status, optimal_df = run_milp_optimization(force_df, total_hours, beta_protection, max_cap, k_cap)
             
             if status == "Infeasible":
                 st.error("❌ **Constraint Error:** Your Maximum Cap is too restrictive to support your Baseline Protection. Please adjust the sliders.")
