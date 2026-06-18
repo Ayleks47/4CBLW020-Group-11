@@ -282,8 +282,7 @@ def zoomed_lsoa():
             st.session_state.clicked_lsoa = None
             st.rerun(scope='fragment')
 
-        st.button("ℹ️",help="""🟡 Micro-Spike
-                    🔴 Macro-Surge""")
+        st.markdown("""🟡 Micro-Spike 🔴 Macro-Surge""")
             
         projected_geom = force_geom.to_crs(epsg=3857)
         center_lat = projected_geom.geometry.centroid.to_crs(epsg=4326).y.iloc[0]
