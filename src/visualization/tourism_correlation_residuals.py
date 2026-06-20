@@ -25,7 +25,7 @@ def tourism_correlation():
 
     #Not really necessary to change the tourism df around but whatever
 
-    tourism_df = pd.read_parquet(repo_root / "data" / "Tourism_MergedCorrect.parquet")
+    tourism_df = pd.read_parquet(repo_root / "data" / "Tourism_Merged.parquet")
     
     tourism_df = (
         tourism_df[["Date", "TourismWorldTotal"]]
