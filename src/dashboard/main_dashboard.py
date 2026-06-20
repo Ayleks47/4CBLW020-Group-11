@@ -53,20 +53,20 @@ def load_and_prep_spatial_models():
         oco_baseline = pd.DataFrame(columns=['LSOA code', 'Baseline'])
         oco_latest = pd.DataFrame(columns=['LSOA code', 'Predicted_OCO'])
 
-    # 3. LOAD & FLATTEN SARIMA
+    # 3. LOAD & FLATTEN SARIMAX
     try:
-        sarima = pd.read_csv(data_dir / "SARIMA_forecast.csv")
-        sarima_latest = sarima[['LSOA Code', 'Unnamed: 2']].rename(columns={'LSOA Code': 'LSOA code', 'Unnamed: 2': 'Predicted_SARIMA'})
-        sarima_latest = sarima_latest.drop_duplicates(subset=['LSOA code'])
+        sarimax = pd.read_csv(data_dir / "SARIMAX_forecast.csv")
+        sarimax_latest = sarimax[['LSOA code', 'forecast']].rename(columns={'forecast': 'Predicted_SARIMA'})
+        sarimax_latest = sarimax_latest.drop_duplicates(subset=['LSOA code'])
     except Exception:
-        sarima_latest = pd.DataFrame(columns=['LSOA code', 'Predicted_SARIMA'])
+        sarimax_latest = pd.DataFrame(columns=['LSOA code', 'Predicted_SARIMA'])
 
     # 4. BUILD THE MASTER MILP DATAFRAME
     geo_truth = geo_truth.drop_duplicates(subset=['LSOA code'])
     
     master_milp = geo_truth.merge(oco_baseline, on='LSOA code', how='left')
     master_milp = master_milp.merge(oco_latest, on='LSOA code', how='left')
-    master_milp = master_milp.merge(sarima_latest, on='LSOA code', how='left')
+    master_milp = master_milp.merge(sarimax_latest, on='LSOA code', how='left')
     
     numeric_cols = ['Baseline', 'Predicted_OCO', 'Predicted_SARIMA']
     master_milp[numeric_cols] = master_milp[numeric_cols].fillna(0)
@@ -107,6 +107,7 @@ def run_milp_optimization(opt_df, total_hours, beta, c_max, k_cap):
     for _, row in opt_df.iterrows():
         F_i, B_i, lsoa = row['Predicted'], row['Baseline'], row['LSOA code']
         weights[lsoa] = (F_i - B_i) / (B_i + epsilon) if F_i > SURGE_THRESHOLD else 0.0
+        # weights[lsoa] = (F_i - B_i) / (B_i + epsilon)
             
     prob = pulp.LpProblem("Patrol_Allocation", pulp.LpMaximize)
     lsoas = opt_df['LSOA code'].unique().tolist()
@@ -266,9 +267,9 @@ def zoomed_lsoa():
     
     with col2:
         st.subheader("Forecast Engine")
-        model_choice = st.radio("Select Prediction Model:", ["SARIMA", "OCO (Optimised)"], horizontal=True)
+        model_choice = st.radio("Select Prediction Model:", ["SARIMAX", "OCO"], horizontal=True)
         
-        if model_choice == "SARIMA":
+        if model_choice == "SARIMAX":
             force_milp_data['Predicted'] = force_milp_data['Predicted_SARIMA']
         else:
             force_milp_data['Predicted'] = force_milp_data['Predicted_OCO']
@@ -363,8 +364,6 @@ def tab1():
 def explorer_page():
     dataset_explorer.crime_dataset_explorer(df)
 
-# def graphs_page():
-#     graphs.tab3(df)
 
 pg = st.navigation([
     st.Page(tab1, title="Map", default=True),
