@@ -92,7 +92,7 @@ outputs/Presentation Temperature/national_time_series_correlation.png -> The dua
 
 ## Contributors
 - Mariana Vall (2133768)
-- Kerem Yildiz ()
+- Kerem Yildiz (2107872)
 - Alex Vančo ()
 - Maciej Śliżak (2130076)
 - Vlad Ionescu ()
