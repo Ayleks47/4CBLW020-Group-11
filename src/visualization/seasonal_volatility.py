@@ -3,11 +3,13 @@ import polars as pl
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from statsmodels.tsa.seasonal import seasonal_decompose
+from pathlib import Path
 
 crime_list = ['Anti-social behaviour', 'Bicycle theft', 'Burglary', 'Criminal damage and arson', 'Drugs', 'Other crime', 'Other theft', 'Possession of weapons', 'Public disorder and weapons', 'Public order', 'Robbery', 'Shoplifting', 'Theft from the person', 'Vehicle crime', 'Violence and sexual offences', 'Violent crime']
 
 def generate_variance_df():
-    df = pl.scan_parquet("data/merged_crime_dataset.parquet")
+    repo_root = Path(__file__).resolve().parents[2]
+    df = pl.scan_parquet(repo_root / "data" / "merged_crime_dataset.parquet")
     
     sorted_df = (
         df
@@ -39,7 +41,8 @@ def generate_variance_df():
     return pd.DataFrame(results)
 
 def generate_variance_df_by_crime_type(crime_type):
-    df = pl.scan_parquet("data/merged_crime_dataset.parquet")
+    repo_root = Path(__file__).resolve().parents[2]
+    df = pl.scan_parquet(repo_root / "data" / "merged_crime_dataset.parquet")
     
     sorted_df = (
         df
@@ -77,8 +80,8 @@ def generate_variance_df_by_crime_type(crime_type):
 def plot_variance_map(df):
 
     # pretty much just Maciej's work here 
-    
-    uk_map = gpd.read_file("data/SHP/Police_Force_Areas_UK.shp")
+    repo_root = Path(__file__).resolve().parents[2]
+    uk_map = gpd.read_file(repo_root / "data" / "SHP" / "Police_Force_Areas_UK.shp")
     
     uk_map['Police_Force'] = (
         uk_map['PFANM']
@@ -115,4 +118,6 @@ def plot_variance_map(df):
 
     ax.axis('off')
     plt.tight_layout()
-    plt.savefig("volatility_map.png")
+    output_dir = repo_root / "outputs" / "Volatility by Crime Type"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_dir / "volatility_map.png")

@@ -2,13 +2,15 @@ import polars as pl
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
 from statsmodels.tsa.seasonal import seasonal_decompose
 from scipy.stats import pearsonr
 
 tourist_crimes = ['Other theft','Public order','Robbery','Theft from the person']
 
 def tourism_correlation():
-    crime_df = pl.scan_parquet("merged_crime_dataset.parquet")
+    repo_root = Path(__file__).resolve().parents[2]
+    crime_df = pl.scan_parquet(repo_root / "data" / "merged_crime_dataset.parquet")
     crime_sort = (
         crime_df
         .drop_nulls(subset = ["Month"])
@@ -23,7 +25,7 @@ def tourism_correlation():
 
     #Not really necessary to change the tourism df around but whatever
 
-    tourism_df = pd.read_parquet("Tourism_MergedCorrect.parquet")
+    tourism_df = pd.read_parquet(repo_root / "data" / "Tourism_MergedCorrect.parquet")
     
     tourism_df = (
         tourism_df[["Date", "TourismWorldTotal"]]
@@ -69,6 +71,8 @@ def tourism_correlation():
     ax.text(0.05, 0.95, f'Pearson R: {r_value:.3f}\nP-value: {p_value:.3g}', transform=ax.transAxes, fontsize=12, verticalalignment='top')
     
     plt.tight_layout()
-    plt.savefig("tourism_crime_correlation.png")
+    output_dir = repo_root / "outputs" / "Tourism Correlation"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_dir / "tourism_crime_correlation.png")
 
 tourism_correlation()

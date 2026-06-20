@@ -2,9 +2,11 @@ import geopandas as gpd
 import xarray as xr
 import regionmask
 import pandas as pd
+from pathlib import Path
 
 def extract_regional_weather():
-    shapefile_path = "data/SHP/Police_Force_Areas_UK.shp" 
+    repo_root = Path(__file__).resolve().parents[2]
+    shapefile_path = repo_root / "data" / "SHP" / "Police_Force_Areas_UK.shp"
     police_map = gpd.read_file(shapefile_path)
     
     # Project to British National Grid to match Met Office data
@@ -43,7 +45,7 @@ def extract_regional_weather():
     final_table = df_temp[['Month', 'Police_Force', 'rainfall']].rename(columns={'rainfall': 'Total_Rainfall'})
     final_table = final_table.dropna()
     
-    output_name = "regional_rainfall_2010_2024.csv"
+    output_name = repo_root / "data" / "regional_rainfall_2010_2024.csv"
     final_table.to_csv(output_name, index=False)
     print(f"saved as: {output_name}")
 

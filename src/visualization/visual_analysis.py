@@ -1,9 +1,13 @@
 import polars as pl
 import matplotlib.pyplot as plt
 import numpy as np
+from pathlib import Path
+
+repo_root = Path(__file__).resolve().parents[2]
+merged_data_path = repo_root / "data" / "merged_crime_dataset.parquet"
 
 # 2010-2026
-df = pl.read_parquet("../../merged_data/merged_crime_dataset.parquet")
+df = pl.read_parquet(merged_data_path)
 
 # List of crime types
 crime_type = pl.Series(df.select('Crime type').unique()).to_list()
@@ -79,8 +83,10 @@ def crime_type_figure(crime):
     fig.supylabel('Crime Volume')
     fig.suptitle(crime, size=20)
     plt.tight_layout()
-    plt.show()
-    fig.savefig(f'../../outputs/Presentation Freetime/{crime}.png')
+    # plt.show()
+    output_dir = repo_root / "outputs" / "Presentation Freetime"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_dir / f"{crime}.png")
 
 
 """
@@ -103,20 +109,17 @@ def year_figure(year):
             pl.col("Month").unique(maintain_order=True).alias("unique"),
             pl.col("Month").unique_counts().alias("unique_counts"),
         )
-        # .with_columns([
-        # ((pl.col(c) - pl.col(c).min()) / (pl.col(c).max() - pl.col(c).min())).alias(c) #normalization
-        # for c in ["unique_counts"]
-        # ])
+        .with_columns([
+        ((pl.col(c) - pl.col(c).min()) / (pl.col(c).max() - pl.col(c).min())).alias(c) #normalization
+        for c in ["unique_counts"]
+        ])
         )
-        # print(filtered_df)
-        # print(filtered_df.head())
         ax[i][j].plot(
             filtered_df["unique"].str.strip_prefix(f"{year}-"),
             filtered_df["unique_counts"],
-            # label = crime
+            
         )
         ax[i][j].set_title(crime)
-        # ax[i][j].axes.get_xaxis().set_visible(False)
         annot_max(pl.Series(filtered_df["unique"].str.strip_prefix(f"{year}-")).to_list(),
                   pl.Series(filtered_df["unique_counts"]).to_list(), ax[i][j])
         if i < (len(crime_type)//2) - 1:
@@ -125,10 +128,12 @@ def year_figure(year):
             i = 0
             j += 1
 
-    # plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     fig.suptitle(year)
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+    output_dir = repo_root / "outputs" / "Presentation Freetime"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_dir / f"{year}.png")
 
 
 def highest_crime(year):
@@ -139,20 +144,14 @@ def highest_crime(year):
                          .group_by(["Month", "Crime type"]))
                          .len(name="count"))
                          .filter(pl.col("count") >= pl.col("count").mean()))
-    # else:
-    #     print(year)
-    #     print(((df.filter(pl.col("Month").str.contains(str(year)))
-    #      .group_by(["Month", "Crime type"]))
-    #      .len(name="count"))
-    #      .filter(pl.col("count") == pl.col("count").max()))
 
+def main():
+    for c in crime_type:
+        crime_type_figure(c)
 
-# for c in crime_type:
-crime_type_figure("Burglary")
+    # for i in range(2010, 2026):
+        # year_figure(i)
+    # highest_crime(1)
 
-# for i in range(2010, 2026):
-# year_figure(2015)
-# highest_crime(1)
-# print(df.filter((pl.col("Crime type") == "Public disorder and weapons")))
-# print(df.filter((pl.col("Month").str.contains(str(2016)))))
-# Exclude 2010,2011,2026 for insufficient data
+if __name__ == "__main__":
+    main()

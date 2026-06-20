@@ -1,12 +1,14 @@
 import geopandas as gpd
 import json
 import warnings
+from pathlib import Path
 
 # Suppress harmless warnings for cleaner output
 warnings.filterwarnings("ignore")
 
 print("1. Loading LSOA shapefile...")
-lsoa_gdf = gpd.read_file("data/SHP/LSOA/LSOA.shp")
+repo_root = Path(__file__).resolve().parents[2]
+lsoa_gdf = gpd.read_file(repo_root / "data" / "SHP" / "LSOA" / "LSOA.shp")
 
 # Find the exact column name your shapefile uses for LSOA Names
 name_col = None
@@ -28,7 +30,7 @@ print("4. Building JSON dictionary...")
 # Group by the LSOA and create a list of its neighbors
 adjacency_dict = neighbors.groupby(f'{name_col}_left')[f'{name_col}_right'].apply(list).to_dict()
 
-output_path = "data/lsoa_neighbors.json"
+output_path = repo_root / "data" / "lsoa_neighbors.json"
 with open(output_path, "w") as f:
     json.dump(adjacency_dict, f)
 

@@ -1,10 +1,12 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 from scipy.stats import ttest_rel, wilcoxon
 
 # 1. Load OCO predictions
-oco = pd.read_parquet("oco_outlier_optimised.parquet")
+repo_root = Path(__file__).resolve().parents[2]
+oco = pd.read_parquet(repo_root / "data" / "oco_outlier_optimised.parquet")
 print("OCO columns:", oco.columns.tolist())
 oco = oco.rename(columns={
     'LSOA code': 'LSOA_code',
@@ -15,7 +17,7 @@ oco = oco[['LSOA_code', 'Month', 'total_crimes', 'predicted_crime', 'abs_error']
 oco = oco.drop_duplicates(['LSOA_code', 'Month'])
 
 # 2. Load prepared data 
-prep = pd.read_parquet("prepared_data.parquet")
+prep = pd.read_parquet(repo_root / "data" / "prepared_data.parquet")
 print("Prepared columns:", prep.columns.tolist())
 # Ensure LSOA code column is consistent
 if 'LSOA code' in prep.columns:

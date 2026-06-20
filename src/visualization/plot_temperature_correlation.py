@@ -1,10 +1,11 @@
 import pandas as pd
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 def generate_temp_correlation_map():
-
-    df = pd.read_csv("data/final_midterm_prototype_with_rates.csv")
+    repo_root = Path(__file__).resolve().parents[2]
+    df = pd.read_csv(repo_root / "data" / "final_midterm_prototype_with_rates.csv")
     
     df = df.dropna(subset=['Crime_Rate_Per_1000', 'Mean_Temp'])
 
@@ -25,7 +26,7 @@ def generate_temp_correlation_map():
             
     corr_df = pd.DataFrame(results)
 
-    uk_map = gpd.read_file("data/SHP/Police_Force_Areas_UK.shp")
+    uk_map = gpd.read_file(repo_root / "data" / "SHP" / "Police_Force_Areas_UK.shp")
     
     # Standard string cleaning to match our master dataset
     uk_map['Police_Force'] = (
@@ -61,7 +62,9 @@ def generate_temp_correlation_map():
 
     ax.axis('off')
     plt.tight_layout()
-    output_img = "outputs/Presentation Temperature/temperature_correlation_map.png"
+    output_dir = repo_root / "outputs" / "Presentation Temperature"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_img = output_dir / "temperature_correlation_map.png"
     plt.savefig(output_img, dpi=300)
     print(f"\nImage saved as {output_img}")
 

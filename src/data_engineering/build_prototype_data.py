@@ -1,7 +1,9 @@
 import polars as pl
+from pathlib import Path
 
 def build_master_dataset():
-    crime_lazy = pl.scan_parquet("data/merged_crime_dataset.parquet")
+    repo_root = Path(__file__).resolve().parents[2]
+    crime_lazy = pl.scan_parquet(repo_root / "data" / "merged_crime_dataset.parquet")
     
     # Count total crimes per month per police force
     monthly_crime = (
@@ -11,9 +13,9 @@ def build_master_dataset():
         .collect() 
     )
     
-    temp_df = pl.read_csv("regional_temperature_2010_2024.csv")
-    sun_df = pl.read_csv("regional_sunshine_2010_2024.csv")
-    rain_df = pl.read_csv("regional_rainfall_2010_2024.csv") 
+    temp_df = pl.read_csv(repo_root / "data" / "regional_temperature_2010_2024.csv")
+    sun_df = pl.read_csv(repo_root / "data" / "regional_sunshine_2010_2024.csv")
+    rain_df = pl.read_csv(repo_root / "data" / "regional_rainfall_2010_2024.csv") 
     
     master_df = (
         monthly_crime
@@ -23,7 +25,7 @@ def build_master_dataset():
         .drop_nulls() 
     )
     
-    output_name = "midterm_prototype_dataset.csv"
+    output_name = repo_root / "data" / "midterm_prototype_dataset.csv"
     master_df.write_csv(output_name)
     print(f"Created master dataset: {output_name}")
 

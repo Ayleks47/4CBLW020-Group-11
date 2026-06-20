@@ -1,11 +1,13 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 from statsmodels.tsa.seasonal import seasonal_decompose
 from scipy.stats import pearsonr
 
 def temperature_correlation():
-    df = pd.read_csv("data/final_midterm_prototype_with_rates.csv")
+    repo_root = Path(__file__).resolve().parents[2]
+    df = pd.read_csv(repo_root / "data" / "final_midterm_prototype_with_rates.csv")
 
     national_df = df.groupby('Month').agg({'Total_Crimes': 'sum','Mean_Temp': 'mean' }).reset_index()
 
@@ -60,7 +62,9 @@ def temperature_correlation():
 
     plt.legend()
     plt.tight_layout()
-    plt.savefig("outputs/Presentation Temperature/temp_crime_correlation_precovid.png")
+    output_dir = repo_root / "outputs" / "Presentation Temperature"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_dir / "temp_crime_correlation_precovid.png")
 
 # Run the function
 temperature_correlation()

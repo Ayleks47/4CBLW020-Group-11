@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 from scipy.stats import boxcox
 from sklearn.preprocessing import MinMaxScaler
 import warnings
@@ -10,7 +11,8 @@ warnings.filterwarnings('ignore')
 print("OCO CRIME PREDICTION MODEL")
 
 # Load prepared data
-df = pd.read_parquet("C:/Users/maria/Desktop/OCO/prepared_data.parquet")
+repo_root = Path(__file__).resolve().parents[2]
+df = pd.read_parquet(repo_root / "data" / "prepared_data.parquet")
 print(f"Loaded rows: {len(df):,}")
 print(f"Unique LSOAs: {df['LSOA code'].nunique():,}")
 print(f"Date range: {df['Month'].min()} to {df['Month'].max()}")
@@ -164,8 +166,8 @@ print(summary[['rank', 'LSOA code', 'Police_Force', 'avg_crime', 'temp_sens']].h
 # Save historical results
 save_cols = ['LSOA code', 'Police_Force', 'Month', 'year', 'month_num',
              'Mean_Temperature_C', 'free_time', 'temp_sens', 'total_crimes', 'pred', 'abs_err']
-df_clean[save_cols].to_parquet("oco_outlier_optimised.parquet", index=False)
-summary.to_csv("oco_outlier_lsoa_rankings.csv", index=False)
+df_clean[save_cols].to_parquet(repo_root / "data" / "oco_outlier_optimised.parquet", index=False)
+summary.to_csv(repo_root / "data" / "oco_outlier_lsoa_rankings.csv", index=False)
 
 # Forecast next month 
 print("\nGenerating next month forecast...")
@@ -241,8 +243,8 @@ next_month_df = pd.DataFrame({
     'predicted_crime': pred_next_orig
 })
 
-next_month_df.to_csv("next_month_forecast.csv", index=False)
-print(f"\nNext month forecast saved to 'next_month_forecast.csv'")
+next_month_df.to_csv(repo_root / "data" / "next_month_forecast.csv", index=False)
+print(f"\nNext month forecast saved to {repo_root / 'data' / 'next_month_forecast.csv'}")
 print(f"Forecast month: {next_month_date.strftime('%Y-%m')}")
 print(f"Number of LSOAs: {len(next_month_df)}")
     

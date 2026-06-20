@@ -2,6 +2,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 import zipfile
+from pathlib import Path
 
 def stream_zip_to_parquet(zip_file_name: str, target_file_inside_zip: str, output_parquet_name: str):
     print(f"Opening {zip_file_name}...")
@@ -53,13 +54,13 @@ def stream_zip_to_parquet(zip_file_name: str, target_file_inside_zip: str, outpu
                 parquet_writer.close()
 
 if __name__ == "__main__":
-
-    zip_name = "data/merged_data.zip" 
-    
-    target_file = "merged_data/merged_street.csv" 
+    repo_root = Path(__file__).resolve().parents[2]
+    zip_name = repo_root / "data" / "merged_data.zip"
+    target_file = "merged_data/merged_street.csv"
+    output_parquet = repo_root / "data" / "merged_crime_dataset.parquet"
     
     stream_zip_to_parquet(
-        zip_file_name=zip_name, 
+        zip_file_name=str(zip_name),
         target_file_inside_zip=target_file,
-        output_parquet_name="merged_crime_dataset.parquet"
+        output_parquet_name=str(output_parquet)
     )

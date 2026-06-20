@@ -1,9 +1,10 @@
 import polars as pl
 import pandas as pd
+from pathlib import Path
 
 def process_and_merge_population():
-
-    master_df = pl.read_csv("data/midterm_prototype_dataset.csv")
+    repo_root = Path(__file__).resolve().parents[2]
+    master_df = pl.read_csv(repo_root / "data" / "midterm_prototype_dataset.csv")
 
     excel_file = "policeforceareas1991to2024.xlsx"
 
@@ -47,7 +48,7 @@ def process_and_merge_population():
     # (Total Crimes / Population) * 1000
     final_df = final_df.with_columns(((pl.col("Total_Crimes") / pl.col("Population")) * 1000).alias("Crime_Rate_Per_1000"))
     
-    output_name = "final_midterm_prototype_with_rates.csv"
+    output_name = repo_root / "data" / "final_midterm_prototype_with_rates.csv"
     final_df.write_csv(output_name)
     print(f"\nMaster dataset saved as: {output_name}")
 

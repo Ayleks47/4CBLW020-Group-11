@@ -1,9 +1,11 @@
 import geopandas as gpd
 import pandas as pd
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 def plot_side_by_side_map():
-    uk_map = gpd.read_file("data/SHP/Police_Force_Areas_UK.shp")
+    repo_root = Path(__file__).resolve().parents[2]
+    uk_map = gpd.read_file(repo_root / "data" / "SHP" / "Police_Force_Areas_UK.shp")
     
     uk_map['Police_Force'] = (
         uk_map['PFANM']
@@ -14,7 +16,7 @@ def plot_side_by_side_map():
         .str.replace(" ", "-")      
     )
     
-    df = pd.read_csv("data/final_midterm_prototype_with_rates.csv")
+    df = pd.read_csv(repo_root / "data" / "final_midterm_prototype_with_rates.csv")
     
     target_month = "2018-07"
     month_data = df[df['Month'] == target_month]
@@ -56,7 +58,9 @@ def plot_side_by_side_map():
     ax2.axis('off')
     
     plt.tight_layout()
-    output_img = f"midterm_map_per_capita{target_month}.png"
+    output_dir = repo_root / "outputs"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_img = output_dir / f"midterm_map_per_capita{target_month}.png"
     plt.savefig(output_img, dpi=300) 
     print(f"\nImage saved as {output_img}")
 

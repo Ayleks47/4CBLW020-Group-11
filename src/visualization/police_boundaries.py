@@ -1,7 +1,9 @@
 import geopandas as gpd
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-shapefile_path = "data/SHP/Police_Force_Areas_UK.shp" 
+repo_root = Path(__file__).resolve().parents[2]
+shapefile_path = repo_root / "data" / "SHP" / "Police_Force_Areas_UK.shp" 
 
 police_map = gpd.read_file(shapefile_path)
 

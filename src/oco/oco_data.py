@@ -1,12 +1,14 @@
 import pandas as pd
 import calendar
 from datetime import date as date_func
+from pathlib import Path
 
 print("DATA PREPARATION")
 
 # 1. Load only necessary columns from raw data
 cols = ['LSOA code', 'Police Territory', 'Crime type', 'Crime_Count', 'Mean_Temperature_C', 'Month']
-df_raw = pd.read_parquet("master_final_final.parquet", columns=cols)
+repo_root = Path(__file__).resolve().parents[2]
+df_raw = pd.read_parquet(repo_root / "data" / "master_final_final.parquet", columns=cols)
 print("raw rows:", len(df_raw))
 
 # 2. Filter to exactly the six selected crime types
@@ -85,8 +87,8 @@ monthly = monthly.dropna(subset=['lag1', 'lag12'])
 print("final rows:", len(monthly))
 
 # 13. Save
-monthly.to_parquet("prepared_data.parquet", index=False)
-monthly.to_csv("prepared_data.csv", index=False)
+monthly.to_parquet(repo_root / "data" / "prepared_data.parquet", index=False)
+monthly.to_csv(repo_root / "data" / "prepared_data.csv", index=False)
 
 print("\nDone.")
 print("date range:", monthly['Month'].min(), "to", monthly['Month'].max())
