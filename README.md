@@ -94,6 +94,6 @@ outputs/Presentation Temperature/national_time_series_correlation.png -> The dua
 - Mariana Vall (2133768)
 - Kerem Yildiz ()
 - Alex Vančo ()
-- Maciej Śliżak ()
+- Maciej Śliżak (2130076)
 - Vlad Ionescu ()
 - Yağmur Çalişkan (2083914)
