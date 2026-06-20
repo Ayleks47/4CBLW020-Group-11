@@ -90,23 +90,6 @@ outputs/Presentation Temperature/temperature_correlation_map.png -> The Red Map 
 
 outputs/Presentation Temperature/national_time_series_correlation.png -> The dual axis line chart. This essentially is a finding and a proof of feasibility for the subquestion of "Does temperature help explain fluctuations in selected crime types?". Where we see there is a big correlation.
 
-## Presentation Talking Points
-Our specific sub-question is: "Does temperature help explain fluctuations in selected crime types?"
-
-We can answer this with:
-
-The Temporal Proof (Line Chart): Show the 5-year dual-axis chart. Explain that the national crime rate moves in perfect synchronization with the national temperature. Every summer it peaks; every winter it drops.
-
-The Spatial Proof (Red Map): Show the correlation heatmap. Explain that we calculated the r (Pearson) correlation for all 43 forces. This proves the effect isn't uniform—coastal and tourist regions (Dark Red) are hyper-sensitive to heat compared to dense urban centers.
-
-The Criminological Theory: We explain this using Routine Activity Theory (1979, Cohen & Felson). Heat doesn't biologically cause crime; it pushes people outdoors, floods tourist areas, and leaves homes empty with windows open. It mathematically increases "Suitable Targets" and decreases "Capable Guardians."
-
-"Routine Activity Theory (Cohen & Felson, 1979) - Google it if you want to learn more about it.
-For a crime to happen, you need an offender and a target in the same place at the same time. Weather dictates human routine. Rain keeps people indoors (lowering street crime, but maybe increasing domestic incidents). Sun brings people to parks and pubs (increasing public order offenses)" - This is the relevant literature/theory for this sub-problem. You could also tie this to tourism, as more hot weather, more tourists come etc.
-
-## Feasibility for Final End Goal
-We present some of these plots as our Exploratory Data Analysis (EDA). By proving that temperature heavily correlates with crime, we prove to the examiners that our ultimate goal, an AI-driven Interactive Dashboard that forecasts crime based on upcoming weather reports, tourism and free-time is feasible and highly valuable for police resource allocation.
-
 ## Contributors
 - Mariana Vall (2133768)
 - Kerem Yildiz ()
