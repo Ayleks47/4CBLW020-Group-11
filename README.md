@@ -96,4 +96,4 @@ outputs/Presentation Temperature/national_time_series_correlation.png -> The dua
 - Alex Vančo ()
 - Maciej Śliżak ()
 - Vlad Ionescu ()
-- Yağmur Çalişkan ()
+- Yağmur Çalişkan (2083914)
