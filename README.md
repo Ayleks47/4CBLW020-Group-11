@@ -94,7 +94,7 @@ python src/dashboard/'name_of_script'.py
 ## Contributors
 - Mariana Vall (2133768)
 - Kerem Yildiz (2107872)
-- Alex Vančo ()
+- Alex Vančo (2103265)
 - Maciej Śliżak (2130076)
-- Vlad Ionescu ()
+- Vlad Ionescu (2160692)
 - Yağmur Çalişkan (2083914)
