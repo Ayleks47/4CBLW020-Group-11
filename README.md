@@ -37,7 +37,13 @@ There are 5 folders in this project. The order in which they are run matters. To
 Data transformations.
 
 ```bash
-python src/data_engineering/ ???????????
+python src/data_engineering/add_populcation_data.py
+python src/data_engineering/build_matrix.py
+python src/data_engineering/build_prototype_data.py
+python src/data_engineering/df.py
+python src/data_engineering/extract_weather.py
+python src/data_engineering/merge_weather.py
+python src/data_engineering/prep_data.py
 ```
 
 
@@ -46,7 +52,6 @@ python src/data_engineering/ ???????????
 Generate various graphs and figures related to the project.
 
 ```bash
-# Replace "script" with the name of any visualisation script.
 python src/visualisation/main_visualization.py
 ```
 
@@ -79,16 +84,12 @@ python src/oco/naive.py
 This is the main dashboard (ensure you run data engineering and models before).
 ```bash
 # Replace folder and script with the specific folder and script you want to run.
-python src/folder/script.py
+python src/dashboard/'name_of_script'.py
 ```
 
 
-## Important Files to Know (Shared in google drive)
-data/final_midterm_prototype_with_rates.csv -> This is our Master Dataset. It contains Month, Police Force, Mean Temp, Rainfall, Sunshine, Population, and Crime Rate. We will use this to train our predictive model for the dashboard. After obtaining tourism levels and free days, we will join the dataset.
+## Important Files to Know 
 
-outputs/Presentation Temperature/temperature_correlation_map.png -> The Red Map that shows how each police force area is affected by the change in temperature. If the Police Force area is in dark red, it means that it is highly correlated to the temperature.
-
-outputs/Presentation Temperature/national_time_series_correlation.png -> The dual axis line chart. This essentially is a finding and a proof of feasibility for the subquestion of "Does temperature help explain fluctuations in selected crime types?". Where we see there is a big correlation.
 
 ## Contributors
 - Mariana Vall (2133768)
