@@ -83,8 +83,7 @@ python src/oco/naive.py
 
 This is the main dashboard (ensure you run data engineering and models before).
 ```bash
-# Replace folder and script with the specific folder and script you want to run.
-python src/dashboard/'name_of_script'.py
+streamlit run main_dashboard.py
 ```
 
 
