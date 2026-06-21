@@ -83,7 +83,7 @@ python src/oco/naive.py
 
 This is the main dashboard (ensure you run data engineering and models before).
 ```bash
-streamlit run main_dashboard.py
+cd src/dashboard/ && streamlit run main_dashboard.py
 ```
 
 
