@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ### Download the Data
 
-Find the data in this [OneDrive](https://tuenl-my.sharepoint.com/:f:/g/personal/a_vanco_student_tue_nl/IgBGOT3Ay212Q57eLknrh67bAcVgen3b9_qGxS-6ugcUwSE?e=kcscll), create a 'data' folder in the root folder and move all the data files into it.
+Find the data in this [OneDrive](https://tuenl-my.sharepoint.com/:f:/g/personal/a_vanco_student_tue_nl/IgBGOT3Ay212Q57eLknrh67bAcVgen3b9_qGxS-6ugcUwSE?e=kcscll), put the folder 'data.zip' in the root directory of this repository and unzip it.
 
 ### Run the Project
 
