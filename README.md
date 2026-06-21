@@ -25,7 +25,7 @@ pip install -r requirements.txt
 
 ### Download the Data
 
-Find the data in this [Google Drive]()
+Find the data in this [Google Drive](), create a 'data' folder in the root folder and move all the data files into it.
 
 ### Run the Project
 
