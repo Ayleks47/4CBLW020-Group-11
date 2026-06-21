@@ -47,7 +47,7 @@ Generate various graphs and figures related to the project.
 
 ```bash
 # Replace "script" with the name of any visualisation script.
-python src/visualisation/"main_vizualisation".py
+python src/visualisation/main_visualization.py
 ```
 
 
